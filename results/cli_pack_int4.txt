@@ -1,0 +1,5 @@
+values   : [4, 7, -3, -8, -5, 3, -5, -1]
+packed   : 01110100 10001101 00111011 11111011  (4 bytes)
+restored : [4, 7, -3, -8, -5, 3, -5, -1]
+round trip exact: True
+storage  : 4.00 bits/weight, 4.0x smaller than fp16 (before scales)

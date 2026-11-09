@@ -1,0 +1,15 @@
+outlier channels detected: [11, 200, 377]
+
+SmoothQuant (W8A8)
+  invariance check, max |difference| in fp32: 3.81e-06
+  output SQNR naive W8A8:     27.45 dB
+  output SQNR smoothed W8A8:  40.06 dB  (+12.61 dB)
+
+AWQ (INT4, group 128)
+  best alpha 0.35; output MSE 1.123e-01 -> 2.485e-02 (4.52x lower)
+
+GPTQ (INT4, group 128), expected output error tr(dW H dW^T)
+  round to nearest:      1.123e+02
+  GPTQ:                  5.338e+01 (2.10x lower)
+  GPTQ with act-order:   2.147e+01 (5.23x lower)
+  output SQNR: RTN 19.67 dB, GPTQ 22.90 dB, act-order 26.85 dB

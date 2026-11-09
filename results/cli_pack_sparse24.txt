@@ -1,0 +1,6 @@
+dense    : [1.54, -0.29, -2.18, 0.57, -1.08, -1.4, 0.4, 0.84]
+kept     : [1.54, -2.18, -1.08, -1.4]
+metadata : 01001000  (two 4-bit groups: idx0 | idx1 << 2)
+restored : [1.54, 0.0, -2.18, 0.0, -1.08, -1.4, 0.0, 0.0]
+round trip of kept values exact: True
+storage  : 9.00 bits/weight with fp16 values (2 x 16 bits + 4 bits per group of 4)

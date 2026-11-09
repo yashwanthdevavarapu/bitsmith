@@ -1,0 +1,15 @@
+Layer 1024x1024, group size 128 (output SQNR on random inputs)
+| scheme     | bits/w |   KiB | output SQNR dB |
+|------------|-------:|------:|---------------:|
+| int8       |  8.016 | 1,026 |          42.01 |
+| int4       |  4.188 | 536.0 |          19.93 |
+| int4-sym   |  4.125 | 528.0 |          18.54 |
+| ternary    |  2.016 | 258.0 |          5.777 |
+| ternary-b3 |  1.617 | 207.0 |          5.777 |
+| sparse24   |  9.000 | 1,152 |          8.780 |
+| fp8-e4m3   |  8.031 | 1,028 |          31.69 |
+| fp8-e5m2   |  8.031 | 1,028 |          25.65 |
+
+int4: 2 layers converted, 1 skipped, 8.00 MiB -> 1.09 MiB (7.31x, 4.38 bits/weight)
+output SQNR after conversion: 21.03 dB
+QLinear(in_features=512, out_features=2048, scheme=int4, bits_per_weight=4.375)
