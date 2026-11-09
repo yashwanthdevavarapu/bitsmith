@@ -1,0 +1,24 @@
+name: Bug report
+description: Something produces a wrong result or crashes
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the command or code and the full error or wrong output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Output of `bitsmith info`, plus OS and Python version
+    validations:
+      required: true

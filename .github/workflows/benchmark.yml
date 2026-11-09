@@ -1,0 +1,42 @@
+name: Benchmark
+
+on:
+  # GitHub hosted runners have no GPU, so this regenerates the CPU results only.
+  # GPU results come from `python scripts/reproduce.py --gpu` on a CUDA machine.
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[plot]"
+      - name: Reproduce CPU results
+        run: python scripts/reproduce.py
+      - name: Job summary
+        run: |
+          {
+            echo "## Tiny model sweep"
+            echo '```'
+            cat results/tiny_sweep.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            results/
+            docs/assets/
