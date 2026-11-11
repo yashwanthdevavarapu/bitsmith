@@ -1,0 +1,41 @@
+name: New format or algorithm
+description: Propose a quantization format, calibration method or kernel
+labels: ["enhancement", "area: formats", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New formats plug in as a codec in `src/bitsmith/nn/codecs.py`; see
+        "Adding a weight format" in CONTRIBUTING.md.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: "NF4, MXFP4, QuIP#, ..."
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Paper or specification
+      description: A link to the paper, spec or reference implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: How it works
+      description: The core idea in a few lines, including bits per weight and what metadata it stores.
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: How to test it
+      description: Known values, error bounds or reference outputs that a test could pin down.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement this myself

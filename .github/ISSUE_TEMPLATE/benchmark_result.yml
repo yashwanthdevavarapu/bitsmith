@@ -1,0 +1,41 @@
+name: Benchmark result
+description: Share kernel or model results from your own GPU
+labels: ["area: benchmarks", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Results from more GPUs make the benchmark tables much more useful.
+        Run one or both of:
+
+        ```
+        python scripts/bench_kernels.py --hardware <closest profile> --json kernels.json
+        bitsmith hf --model Qwen/Qwen2.5-0.5B --device cuda --dtype bfloat16 --eval-tokens 0 --json model.json
+        ```
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU
+      placeholder: "NVIDIA RTX 4090 24 GB"
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: bitsmith, PyTorch, CUDA, Triton and driver versions.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the printed tables, or attach the JSON files.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything unusual about the setup (other jobs on the GPU, power limits, and so on).
