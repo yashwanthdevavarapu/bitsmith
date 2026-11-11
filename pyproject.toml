@@ -1,12 +1,15 @@
 [build-system]
-requires = ["hatchling>=1.24"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "bitsmith"
 version = "0.2.0"
-description = "LLM weight quantization from first principles: INT8/INT4/FP8/ternary, bit packing, 2:4 sparsity, SmoothQuant, AWQ, GPTQ and a Pareto benchmark in pure PyTorch."
+description = "LLM weight quantization from first principles in PyTorch: INT8/INT4/FP8/ternary, bit packing, 2:4 sparsity, SmoothQuant, AWQ, GPTQ and a fused INT4 Triton kernel."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Yashwanth Devavarapu" }]
 requires-python = ">=3.10"
 keywords = ["quantization", "llm", "pytorch", "gptq", "awq", "smoothquant", "fp8", "sparsity"]
 classifiers = [
@@ -16,6 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
 ]
 dependencies = ["torch>=2.2", "numpy>=1.24"]
 
@@ -23,6 +28,12 @@ dependencies = ["torch>=2.2", "numpy>=1.24"]
 hf = ["transformers>=4.45", "datasets>=2.20", "accelerate>=0.30"]
 plot = ["matplotlib>=3.8"]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10", "pre-commit>=3.7"]
+
+[project.urls]
+Homepage = "https://github.com/yashwanthdevavarapu/bitsmith"
+Issues = "https://github.com/yashwanthdevavarapu/bitsmith/issues"
+Changelog = "https://github.com/yashwanthdevavarapu/bitsmith/blob/main/CHANGELOG.md"
+Roadmap = "https://github.com/yashwanthdevavarapu/bitsmith/blob/main/ROADMAP.md"
 
 [project.scripts]
 bitsmith = "bitsmith.cli:main"
