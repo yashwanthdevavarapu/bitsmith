@@ -8,6 +8,8 @@
 ![tests](https://img.shields.io/badge/tests-209%20CPU%20%2B%2085%20GPU-1baf7a)
 ![coverage](https://img.shields.io/badge/coverage-97%25-1baf7a)
 ![types](https://img.shields.io/badge/mypy-clean-2a78d6)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![good first issues](https://img.shields.io/github/issues/yashwanthdevavarapu/bitsmith/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/yashwanthdevavarapu/bitsmith/labels/good%20first%20issue)
 
 bitsmith implements the core of modern LLM compression in readable Python, runs it on
 real models, and reports what each technique actually costs:
@@ -40,6 +42,10 @@ The core library depends only on `torch` and `numpy`.
 - [Design decisions](#design-decisions)
 - [Reproducing everything](#reproducing-everything)
 - [Limitations](#limitations)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
@@ -359,3 +365,38 @@ numbers are deterministic for a given PyTorch version; timings depend on the mac
 - `quantize_model` converts `nn.Linear` only; GPT-2 style `Conv1D` layers are skipped.
 - Activation quantization is simulated (fake quant), as in most research code.
 - Results cover models up to 1.5B parameters.
+- See the [roadmap](ROADMAP.md) for how each of these is being addressed.
+
+## Roadmap
+
+| Milestone | Focus |
+|-----------|-------|
+| v0.3: Speed | CUDA graph decode, faster INT4 GEMV, real INT8 tensor core matmul, faster GPTQ |
+| v0.4: Formats | NF4, MXFP4 and MXINT8, INT3 and INT2, KV-cache quantization |
+| v0.5: Models | GPT-2 `Conv1D` support, folding scales into norms, 7B results |
+
+Details and the matching issues are in [ROADMAP.md](ROADMAP.md) and the
+[milestones](https://github.com/yashwanthdevavarapu/bitsmith/milestones).
+
+## Contributing
+
+Contributions are welcome, from typo fixes to new kernels.
+
+- New here? Pick a [good first issue](https://github.com/yashwanthdevavarapu/bitsmith/labels/good%20first%20issue);
+  each one lists the files to change and how to test it.
+- Bigger features are labelled [help wanted](https://github.com/yashwanthdevavarapu/bitsmith/labels/help%20wanted).
+- Questions and ideas go to [Discussions](https://github.com/yashwanthdevavarapu/bitsmith/discussions).
+- Results from your own GPU are very useful: open a
+  [benchmark result](https://github.com/yashwanthdevavarapu/bitsmith/issues/new?template=benchmark_result.yml) issue.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, standards and the pull request process,
+and the [Code of Conduct](CODE_OF_CONDUCT.md). Security problems: see [SECURITY.md](SECURITY.md).
+
+## Citation
+
+If bitsmith helps your work, please cite it using [CITATION.cff](CITATION.cff) (GitHub shows
+a "Cite this repository" button in the sidebar).
+
+## License
+
+[Apache License 2.0](LICENSE). Contributions are accepted under the same license.

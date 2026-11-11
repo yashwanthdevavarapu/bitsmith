@@ -3,6 +3,18 @@
 All notable changes are listed here. The format follows Keep a Changelog and the project
 uses Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Apache 2.0 license, Code of Conduct, security policy, citation file and roadmap.
+- Contributor guide with a first-contribution walkthrough and label reference.
+- Issue templates for new formats and benchmark results, a contact link to Discussions,
+  and an updated pull request checklist.
+- `scripts/github_bootstrap.py`, which creates the project labels, milestones and starter
+  issues on GitHub.
+- Package metadata: license, author and project links.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

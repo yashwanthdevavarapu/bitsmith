@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use bitsmith in your work, please cite it as below."
+title: "bitsmith: LLM weight quantization from first principles"
+type: software
+authors:
+  - family-names: Devavarapu
+    given-names: Yashwanth
+repository-code: "https://github.com/yashwanthdevavarapu/bitsmith"
+license: Apache-2.0
+version: 0.2.0
+date-released: "2026-11-10"
+keywords:
+  - quantization
+  - large language models
+  - pytorch
+  - triton
+  - gptq
+  - awq
+  - smoothquant
