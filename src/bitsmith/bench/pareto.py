@@ -58,6 +58,8 @@ def default_configs(group_size: int = 64) -> list[SweepConfig]:
         SweepConfig(f"int4-g{g}", "int4", group_size=g),
         SweepConfig(f"int4-g{g}+awq", "int4", "awq", group_size=g),
         SweepConfig(f"int4-g{g}+gptq", "int4", "gptq", group_size=g),
+        SweepConfig(f"nf4-g{g}", "nf4", group_size=g),
+        SweepConfig("mxfp4", "mxfp4"),
         SweepConfig("sparse24", "sparse24"),
         SweepConfig("ternary", "ternary"),
     ]
@@ -98,7 +100,9 @@ def time_forward(model: nn.Module, x: Tensor, repeats: int = 5, warmup: int = 1)
 
 
 def _linear_weights(model: nn.Module, exclude: Sequence[str]) -> dict[str, Tensor]:
-    return {n: m.weight.detach().clone() for n, m in linear_layers(model).items() if not _excluded(n, exclude)}
+    """Reference copies of the weights, kept on the CPU so GPU memory holds only one extra model."""
+    layers = linear_layers(model).items()
+    return {n: m.weight.detach().to("cpu", copy=True) for n, m in layers if not _excluded(n, exclude)}
 
 
 def run_sweep(
@@ -152,7 +156,8 @@ def run_sweep(
             for name, w in ref_weights.items():
                 layer = m.get_submodule(name)
                 assert isinstance(layer, QLinear)
-                sqnrs.append(sqnr_db(w, layer.effective_weight()))
+                approx = layer.effective_weight()
+                sqnrs.append(sqnr_db(w.to(approx.device), approx))
             sqnr = statistics.mean(sqnrs)
 
         def logits(ids: Tensor, m: nn.Module = m) -> Tensor:
@@ -178,6 +183,8 @@ def run_sweep(
         if on_model:
             on_model(cfg.label, m)
         del m
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
     front = pareto_front(points)
     for p in points:
         p.on_frontier = p.label in front

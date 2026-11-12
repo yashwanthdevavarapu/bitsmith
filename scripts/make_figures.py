@@ -111,10 +111,12 @@ def terminal_shot(text_file: Path, out_name: str, title: str, max_lines: int = 6
 
 
 GPU_MODELS = [
-    ("gpu_smollm2_135m.json", "SmolLM2-135M"),
-    ("gpu_qwen2.5_0.5b.json", "Qwen2.5-0.5B"),
-    ("gpu_qwen2.5_1.5b.json", "Qwen2.5-1.5B"),
+    ("smollm2_135m", "SmolLM2-135M"),
+    ("qwen2.5_0.5b", "Qwen2.5-0.5B"),
+    ("qwen2.5_1.5b", "Qwen2.5-1.5B"),
 ]
+# each model has a main sweep plus sweeps for the formats added later; all share one baseline
+GPU_FILES = ["gpu_{}.json", "gpu_formats_{}.json", "gpu_formats_awq_{}.json", "gpu_formats_gptq_{}.json"]
 MODEL_COLORS = [BLUE, ORANGE, AQUA]
 CHART_CONFIGS = [
     "int8",
@@ -124,16 +126,25 @@ CHART_CONFIGS = [
     "int4-g64",
     "int4-g64+awq",
     "int4-g64+gptq",
+    "nf4-g64",
+    "nf4-g64+awq",
+    "nf4-g64+gptq",
+    "mxfp4",
+    "mxfp4+awq",
+    "mxfp4+gptq",
 ]
 
 
 def multi_model_chart(out_name: str) -> None:
     """Perplexity increase per config, one bar per model (grouped horizontal bars)."""
     runs = []
-    for fname, label in GPU_MODELS:
-        path = RESULTS / fname
-        if path.exists():
-            pts = {p["label"]: p for p in json.loads(path.read_text(encoding="utf-8"))["points"]}
+    for tag, label in GPU_MODELS:
+        pts = {}
+        for pattern in GPU_FILES:
+            path = RESULTS / pattern.format(tag)
+            if path.exists():
+                pts |= {p["label"]: p for p in json.loads(path.read_text(encoding="utf-8"))["points"]}
+        if pts:
             runs.append((label, pts))
     if not runs:
         return
