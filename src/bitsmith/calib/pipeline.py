@@ -14,15 +14,16 @@ Two calibration orders are supported (see ADR 0009):
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 from torch import Tensor, nn
 
 from bitsmith.calib.awq import awq_search
 from bitsmith.calib.capture import LayerStats, collect_activation_stats
-from bitsmith.calib.gptq import gptq_quantize
+from bitsmith.calib.gptq import gptq_quantize, gptq_quantize_table
 from bitsmith.calib.smoothquant import smooth_weight, smoothing_factors
+from bitsmith.nn.codecs import TABLE_SCHEMES, TableCodec, make_codec
 from bitsmith.nn.convert import DEFAULT_EXCLUDE, ConversionReport, _excluded, linear_layers, quantize_model
 from bitsmith.quant import QTensor
 
@@ -51,6 +52,9 @@ def group_by_block(names: Sequence[str]) -> list[tuple[str, list[str]]]:
     return ordered
 
 
+GPTQ_SCHEMES = ("int4", "int4-sym", *TABLE_SCHEMES)
+
+
 def calibrate_and_quantize(
     model: nn.Module,
     calib_inputs: Sequence[Tensor] | Iterable[Tensor],
@@ -70,8 +74,8 @@ def calibrate_and_quantize(
     exclude = tuple(exclude)
     if method == "rtn":
         return quantize_model(model, scheme, group_size, exclude=exclude, act_bits=act_bits)
-    if method == "gptq" and scheme not in ("int4", "int4-sym"):
-        raise ValueError("gptq supports the int4 and int4-sym schemes")
+    if method == "gptq" and scheme not in GPTQ_SCHEMES:
+        raise ValueError(f"gptq supports the {', '.join(GPTQ_SCHEMES)} schemes")
 
     calib = list(calib_inputs)
     names = [n for n in linear_layers(model) if not _excluded(n, exclude)]
@@ -87,7 +91,7 @@ def calibrate_and_quantize(
             keep_samples=method == "awq",
             stop_after=stop,
         )
-        overrides, qtensors = _calibrate_layers(
+        overrides, qtensors, encoded = _calibrate_layers(
             model, stats, method, scheme, group_size, alpha=alpha, damp=damp, act_order=act_order
         )
         report.merge(
@@ -99,6 +103,7 @@ def calibrate_and_quantize(
                 act_bits=act_bits,
                 overrides=overrides,
                 qtensors=qtensors,
+                encoded=encoded,
                 include=set(layer_names),
             )
         )
@@ -117,9 +122,10 @@ def _calibrate_layers(
     alpha: float,
     damp: float,
     act_order: bool,
-) -> tuple[dict[str, tuple[Tensor, Tensor | None]], dict[str, QTensor]]:
+) -> tuple[dict[str, tuple[Tensor, Tensor | None]], dict[str, QTensor], dict[str, dict[str, Tensor]]]:
     overrides: dict[str, tuple[Tensor, Tensor | None]] = {}
     qtensors: dict[str, QTensor] = {}
+    encoded: dict[str, dict[str, Tensor]] = {}
     for name, st in stats.items():
         linear = model.get_submodule(name)
         assert isinstance(linear, nn.Linear)
@@ -133,6 +139,10 @@ def _calibrate_layers(
             res = awq_search(linear.weight, st.abs_mean, st.samples, scheme=scheme, group_size=group_size)
             scaled = (linear.weight.float() * res.scale).to(linear.weight.dtype)
             overrides[name] = (scaled, (1.0 / res.scale).to(torch.float16))
+        elif scheme in TABLE_SCHEMES:  # gptq onto the NF4 or MX grid
+            codec = cast(TableCodec, make_codec(scheme, group_size))
+            res_t = gptq_quantize_table(linear.weight, st.hessian, codec, damp=damp, act_order=act_order)
+            encoded[name] = res_t.buffers
         else:  # gptq
             res_g = gptq_quantize(
                 linear.weight,
@@ -143,4 +153,4 @@ def _calibrate_layers(
                 act_order=act_order,
             )
             qtensors[name] = res_g.qtensor
-    return overrides, qtensors
+    return overrides, qtensors, encoded
