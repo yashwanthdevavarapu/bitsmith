@@ -64,18 +64,29 @@ def fp8_decode(codes: Tensor, fmt: FP8Format = "e4m3") -> Tensor:
     return table[codes.to(torch.long)]
 
 
+def round_to_table(a: Tensor, mags: Tensor) -> Tensor:
+    """Index of the nearest entry of ``mags`` for each non-negative value in ``a``.
+
+    ``mags`` must be the ascending magnitudes of a sign-magnitude float format, indexed by
+    code, so that an even index means an even mantissa. Values above the last entry
+    saturate to it, and ties go to the even code, which is IEEE round to nearest even.
+    """
+    last = mags.numel() - 1
+    a = a.clamp(max=float(mags[-1]))
+    hi = torch.searchsorted(mags, a.contiguous()).clamp(max=last)
+    lo = (hi - 1).clamp(min=0)
+    d_lo = a - mags[lo]
+    d_hi = mags[hi] - a
+    pick_hi = (d_hi < d_lo) | ((d_hi == d_lo) & (hi % 2 == 0))
+    return torch.where(pick_hi, hi, lo)
+
+
 def fp8_encode(x: Tensor, fmt: FP8Format = "e4m3") -> Tensor:
     """Encode real values into uint8 FP8 bit patterns (saturating, round to nearest even)."""
     spec = FORMATS[fmt]
     mags = _decode_table(spec)[: spec.max_code + 1].to(x.device)  # non-negative finite magnitudes, ascending
     x = x.to(torch.float32)
-    a = x.abs().clamp(max=float(mags[-1]))
-    hi = torch.searchsorted(mags, a.contiguous()).clamp(max=spec.max_code)
-    lo = (hi - 1).clamp(min=0)
-    d_lo = a - mags[lo]
-    d_hi = mags[hi] - a
-    pick_hi = (d_hi < d_lo) | ((d_hi == d_lo) & (hi % 2 == 0))
-    code = torch.where(pick_hi, hi, lo)
+    code = round_to_table(x.abs(), mags)
     sign = (torch.signbit(x)).to(torch.long) << 7
     code = code | sign
     code = torch.where(torch.isnan(x), torch.full_like(code, spec.nan_code), code)

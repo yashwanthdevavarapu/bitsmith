@@ -35,7 +35,8 @@ def test_pack(fmt: str, capsys: pytest.CaptureFixture[str]) -> None:
 def test_sqnr(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["sqnr", "--shape", "64x256", "--outliers", "2", "--group-size", "64"]) == 0
     out = capsys.readouterr().out
-    assert out.count("\n|") >= 9  # header, separator and 8 schemes
+    assert out.count("\n|") >= 12  # header, separator and 11 schemes
+    assert "| nf4 " in out and "| mxfp4 " in out
 
 
 def test_sqnr_rejects_bad_shape() -> None:
