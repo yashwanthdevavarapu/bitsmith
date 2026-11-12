@@ -288,35 +288,21 @@ beyond float rounding)
     ),
     # ---------------------------------------------------------------- v0.4 formats
     Issue(
-        "Add an NF4 codec",
-        ["enhancement", "area: formats", "help wanted"],
+        "Fused Triton kernel for NF4 and MXFP4",
+        ["enhancement", "performance", "area: kernels", "help wanted"],
         """\
-NF4 (from QLoRA) stores 4-bit indices into a fixed table of 16 values placed at quantiles
-of a normal distribution, with one absmax scale per block of 64 weights.
+NF4 and MXFP4 run only on the reference path today (dequantize the whole matrix, then
+matmul), so they are much slower than INT4 with the fused kernel.
 
-**Task**: add an `nf4` scheme.
-1. Quantizer: normalize each block by its absmax, pick the nearest table entry.
-2. Codec in `src/bitsmith/nn/codecs.py`, packed with `pack_int4` (unsigned).
-3. Register in `SCHEMES` and `make_codec`; add rows to the tables in
-   `tests/unit/test_nn.py` so all parametrized tests cover it.
+**Task**: extend `src/bitsmith/kernels/int4_triton.py` so the GEMV unpacks nibbles and
+looks them up in a 16-entry table held in registers (NF4 levels or E2M1 values) instead
+of `(q - z) * s`. MXFP4 also needs the E8M0 scale applied as `2^(e - 127)`.
 
-**Done when** `nf4` passes the codec tests and appears in `bitsmith sqnr`, with its weight
-SQNR reported next to `int4` and `int4-sym`.
-""",
-        milestone="v0.4: Formats",
-    ),
-    Issue(
-        "Add MXFP4 and MXINT8 microscaling formats",
-        ["enhancement", "area: formats"],
-        """\
-The OCP Microscaling (MX) formats share one 8-bit power-of-two scale (E8M0) per block of
-32 elements. MXFP4 elements are FP4 E2M1; MXINT8 elements are int8.
+**Files**: `src/bitsmith/kernels/int4_triton.py`, `src/bitsmith/nn/qlinear.py`
+(`supports_triton`), `tests/gpu/test_cuda.py`, `scripts/bench_kernels.py`
 
-**Task**: implement both as codecs, reusing the table-based approach from
-`src/bitsmith/quant/fp8.py` for E2M1, and document the layout in the technical guide.
-
-**Done when** both formats round trip with tested known values and appear in
-`bitsmith sqnr` with correct bits per weight (4.25 and 8.25).
+**Done when** the GPU tests show the kernel matches the reference path for both formats,
+and `bench_kernels.py` reports them next to INT4.
 """,
         milestone="v0.4: Formats",
     ),

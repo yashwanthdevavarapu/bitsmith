@@ -15,5 +15,7 @@ Records are immutable once accepted; a later record can supersede an earlier one
 | [0008](0008-minimal-dependencies.md) | Minimal runtime dependencies | Accepted |
 | [0009](0009-block-sequential-calibration.md) | Block-sequential calibration and act-order GPTQ | Accepted |
 | [0010](0010-fused-int4-triton-kernel.md) | Fused INT4 kernel in Triton as an optional backend | Accepted |
+| [0011](0011-lookup-and-microscaling-formats.md) | Lookup-table and microscaling formats: NF4, MXFP4, MXINT8 | Accepted |
+| [0012](0012-gptq-on-grid-formats.md) | GPTQ on non-uniform grids through a TableCodec interface | Accepted |
 
 New records start from [`template.md`](template.md).

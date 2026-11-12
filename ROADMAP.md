@@ -37,8 +37,10 @@ Goal: cover the formats people actually ship.
 
 | Item | Labels |
 |------|--------|
-| NF4 codec (lookup table, as in QLoRA) | `area: formats`, `help wanted` |
-| MXFP4 and MXINT8 microscaling formats | `area: formats` |
+| ~~NF4 codec (lookup table, as in QLoRA)~~ done, see ADR 0011 | `area: formats` |
+| ~~MXFP4 and MXINT8 microscaling formats~~ done, see ADR 0011 | `area: formats` |
+| ~~GPTQ for NF4 and MX~~ done, see ADR 0012 | `area: calibration` |
+| Fused Triton kernel for NF4 and MXFP4 (table lookup in registers) | `area: kernels`, `help wanted` |
 | INT3 and INT2 group codecs with packing | `area: formats` |
 | KV-cache quantization | `area: formats`, `help wanted` |
 
