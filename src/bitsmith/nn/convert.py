@@ -64,17 +64,20 @@ def quantize_model(
     act_bits: int | None = None,
     overrides: Mapping[str, tuple[Tensor, Tensor | None]] | None = None,
     qtensors: Mapping[str, QTensor] | None = None,
+    encoded: Mapping[str, dict[str, Tensor]] | None = None,
     include: Collection[str] | None = None,
 ) -> ConversionReport:
     """Replace linear layers with ``QLinear`` and return a report.
 
     ``overrides`` maps a layer name to ``(weight, input_scale)``, used by SmoothQuant and
-    AWQ. ``qtensors`` maps a layer name to precomputed GPTQ codes. If ``include`` is given,
+    AWQ. ``qtensors`` maps a layer name to precomputed GPTQ codes, and ``encoded`` to ready
+    codec buffers (GPTQ for NF4 and MX). If ``include`` is given,
     only those layers are considered (used for block by block calibration).
     """
     exclude = tuple(exclude)
     overrides = overrides or {}
     qtensors = qtensors or {}
+    encoded = encoded or {}
     report = ConversionReport(scheme=scheme)
     for name, linear in linear_layers(model).items():
         if include is not None and name not in include:
@@ -85,6 +88,8 @@ def quantize_model(
         weight_bytes = linear.weight.numel() * linear.weight.element_size()
         if name in qtensors:
             q = QLinear.from_qtensor(linear, qtensors[name], act_bits=act_bits)
+        elif name in encoded:
+            q = QLinear.from_buffers(linear, scheme, group_size, encoded[name], act_bits=act_bits)
         else:
             weight, input_scale = overrides.get(name, (None, None))
             q = QLinear.from_linear(

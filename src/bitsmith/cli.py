@@ -43,7 +43,7 @@ def _log(msg: str) -> None:
 def _write_json(path: str | None, payload: object) -> None:
     if path:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
         _log(f"wrote {path}")
 
 
@@ -225,6 +225,13 @@ _HF_CONFIGS = {
     "int4": SweepConfig("int4-g64", "int4", group_size=64),
     "int4+awq": SweepConfig("int4-g64+awq", "int4", "awq", group_size=64),
     "int4+gptq": SweepConfig("int4-g64+gptq", "int4", "gptq", group_size=64),
+    "nf4": SweepConfig("nf4-g64", "nf4", group_size=64),
+    "nf4+awq": SweepConfig("nf4-g64+awq", "nf4", "awq", group_size=64),
+    "nf4+gptq": SweepConfig("nf4-g64+gptq", "nf4", "gptq", group_size=64),
+    "mxfp4": SweepConfig("mxfp4", "mxfp4"),
+    "mxfp4+awq": SweepConfig("mxfp4+awq", "mxfp4", "awq"),
+    "mxfp4+gptq": SweepConfig("mxfp4+gptq", "mxfp4", "gptq"),
+    "mxint8": SweepConfig("mxint8", "mxint8"),
     "sparse24": SweepConfig("sparse24", "sparse24"),
     "ternary": SweepConfig("ternary", "ternary"),
 }

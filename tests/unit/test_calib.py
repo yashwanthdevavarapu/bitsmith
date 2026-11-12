@@ -12,6 +12,7 @@ from bitsmith.calib import (
     collect_activation_stats,
     damped_inverse_cholesky,
     gptq_quantize,
+    gptq_quantize_table,
     output_error,
     smooth_weight,
     smoothing_factors,
@@ -240,4 +241,73 @@ def test_sequential_and_one_shot_gptq(sequential: bool) -> None:
     report = calibrate_and_quantize(model, calib, method="gptq", group_size=32, sequential=sequential)
     assert len(report.converted) == 12
     assert report.skipped == ["lm_head"]
+    assert F.cosine_similarity(model(ids).flatten(), ref.flatten(), dim=0) > 0.98
+
+
+@pytest.mark.parametrize(("scheme", "min_gain"), [("nf4", 1.05), ("mxfp4", 1.02)])
+def test_awq_works_with_table_formats(scheme: str, min_gain: float) -> None:
+    # measured gain on this data: 1.44x for nf4, 1.05x for mxfp4
+    x = _correlated_inputs()
+    w = torch.randn(64, 128) * 0.02
+    res = awq_search(w, x.abs().mean(0), x[:512], scheme=scheme, group_size=64, n_grid=10)
+    assert res.loss <= res.baseline_loss
+    assert res.improvement > min_gain
+
+
+# GPTQ on grid formats (NF4, MX) ----------------------------------------------------------
+TABLE = ["nf4", "mxfp4", "mxint8"]
+
+
+@pytest.mark.parametrize("scheme", TABLE)
+def test_table_gptq_equals_rtn_without_correlation(scheme: str) -> None:
+    w = torch.randn(16, 96) * 0.02
+    codec = make_codec(scheme, 32)
+    res = gptq_quantize_table(w, torch.eye(96), codec, act_order=False)  # type: ignore[arg-type]
+    rtn = codec.encode(w)
+    for key, value in rtn.items():
+        assert torch.equal(res.buffers[key], value)
+
+
+@pytest.mark.parametrize("scheme", TABLE)
+def test_table_gptq_buffers_decode_to_its_result(scheme: str) -> None:
+    w = torch.randn(8, 100) * 0.02  # 100 is not a multiple of any block size
+    x = _correlated_inputs(512, 100)
+    codec = make_codec(scheme, 32)
+    res = gptq_quantize_table(w, 2 * x.T @ x / 512, codec)  # type: ignore[arg-type]
+    assert torch.equal(codec.decode(res.buffers, 8, 100), res.weight)
+    assert res.proxy_loss > 0
+
+
+@pytest.mark.parametrize(("scheme", "max_ratio"), [("nf4", 0.35), ("mxfp4", 0.35), ("mxint8", 0.35)])
+def test_table_gptq_beats_rtn_on_correlated_inputs(scheme: str, max_ratio: float) -> None:
+    # measured: about 4x lower expected output error for every grid format (3.8x for int4)
+    x = _correlated_inputs()
+    h = 2 * x.T @ x / x.shape[0]
+    w = torch.randn(64, 128) * 0.02
+    codec = make_codec(scheme, 64)
+    rtn = codec.decode(codec.encode(w), 64, 128)
+    gptq = gptq_quantize_table(w, h, codec)  # type: ignore[arg-type]
+    assert output_error(w, gptq.weight, h) < max_ratio * output_error(w, rtn, h)
+
+
+def test_table_gptq_handles_dead_inputs() -> None:
+    x = torch.randn(256, 64)
+    x[:, 5] = 0.0
+    w = torch.randn(4, 64)
+    res = gptq_quantize_table(w, 2 * x.T @ x / 256, make_codec("nf4", 32))  # type: ignore[arg-type]
+    assert torch.isfinite(res.weight).all()
+    assert torch.all(res.weight[:, 5] == 0)
+
+
+@pytest.mark.parametrize("scheme", ["nf4", "mxfp4"])
+def test_pipeline_gptq_on_grid_formats(scheme: str) -> None:
+    torch.manual_seed(0)
+    model = TinyLM(TinyLMConfig(vocab_size=32, dim=32, n_layers=1, n_heads=2, max_len=32)).eval()
+    ids = torch.randint(0, 32, (1, 32))
+    ref = model(ids)
+    calib = [torch.randint(0, 32, (1, 32)) for _ in range(4)]
+    report = calibrate_and_quantize(model, calib, method="gptq", scheme=scheme, group_size=32)
+    assert len(report.converted) == 6
+    layer = model.get_submodule(report.converted[0])
+    assert isinstance(layer, QLinear) and layer.codec.name == scheme
     assert F.cosine_similarity(model(ids).flatten(), ref.flatten(), dim=0) > 0.98

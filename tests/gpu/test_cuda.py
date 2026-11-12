@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from bitsmith.calib import calibrate_and_quantize, gptq_quantize
+from bitsmith.calib import calibrate_and_quantize, gptq_quantize, gptq_quantize_table
 from bitsmith.eval import TinyLM, TinyLMConfig, sqnr_db
 from bitsmith.kernels import int4_linear, triton_available
 from bitsmith.nn import SCHEMES, QLinear, make_codec, quantize_model, set_backend
@@ -32,6 +32,17 @@ def test_gptq_on_gpu_matches_cpu() -> None:
     w = torch.randn(32, 128) * 0.02
     cpu = gptq_quantize(w, h, group_size=64, act_order=True).qtensor.dequantize()
     gpu = gptq_quantize(w.to(CUDA), h.to(CUDA), group_size=64, act_order=True).qtensor.dequantize()
+    assert sqnr_db(cpu, gpu.cpu()) > 40
+
+
+@pytest.mark.parametrize("scheme", ["nf4", "mxfp4"])
+def test_table_gptq_on_gpu_matches_cpu(scheme: str) -> None:
+    x = torch.randn(1024, 128)
+    h = 2 * x.T @ x / 1024
+    w = torch.randn(32, 128) * 0.02
+    codec = make_codec(scheme, 64)
+    cpu = gptq_quantize_table(w, h, codec).weight  # type: ignore[arg-type]
+    gpu = gptq_quantize_table(w.to(CUDA), h.to(CUDA), codec).weight  # type: ignore[arg-type]
     assert sqnr_db(cpu, gpu.cpu()) > 40
 
 

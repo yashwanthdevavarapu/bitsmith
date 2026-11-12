@@ -16,6 +16,13 @@ Group parameters (scale, zero)
   Group parameters are then computed up front from the original weights ("static
   groups"), so the storage layout stays contiguous groups and needs no index map.
 
+Grid formats (NF4, MX)
+----------------------
+:func:`gptq_quantize_table` runs the same column loop for codecs whose weights are a
+per-block scale times a value from a fixed grid. Block scales are fixed up front from the
+original weights (as with static groups), and each column is rounded with the codec's own
+``snap``, so the result is exactly what the codec stores. See ADR 0012.
+
 See ADR 0005 and ADR 0009.
 """
 
@@ -26,7 +33,7 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from bitsmith.nn.codecs import round_scale
+from bitsmith.nn.codecs import TableCodec, round_scale
 from bitsmith.quant import QTensor, QuantSpec, compute_qparams
 
 
@@ -34,6 +41,13 @@ from bitsmith.quant import QTensor, QuantSpec, compute_qparams
 class GPTQResult:
     qtensor: QTensor
     proxy_loss: float  # sum of (w - q)^2 / [H^-1]_ii / 2, the OBS objective
+
+
+@dataclass
+class TableGPTQResult:
+    buffers: dict[str, Tensor]  # ready for QLinear, as produced by the codec
+    weight: Tensor  # the dequantized result, float32
+    proxy_loss: float
 
 
 def damped_inverse_cholesky(hessian: Tensor, damp: float = 0.01) -> tuple[Tensor, Tensor]:
@@ -132,6 +146,55 @@ def gptq_quantize(
         shape=weight.shape,
     )
     return GPTQResult(qtensor=qt, proxy_loss=float(loss.sum()))
+
+
+@torch.no_grad()
+def gptq_quantize_table(
+    weight: Tensor,
+    hessian: Tensor,
+    codec: TableCodec,
+    *,
+    block_size: int = 128,
+    damp: float = 0.01,
+    act_order: bool = True,
+) -> TableGPTQResult:
+    """GPTQ onto the grid of ``codec`` (NF4, MXFP4, MXINT8) with scales fixed from ``weight``."""
+    w = weight.detach().to(torch.float32).clone()
+    h = hessian.to(device=w.device, dtype=torch.float32)
+    rows, cols = w.shape
+    dead = torch.diag(h) == 0
+    w[:, dead] = 0.0
+
+    scale = codec.scale_buffer(w)
+    scale_f = codec.scale_values(scale)
+    col_scale = scale_f.repeat_interleave(codec.block_size, dim=1)[:, :cols]  # (rows, cols)
+    perm = torch.argsort(torch.diag(h), descending=True) if act_order else torch.arange(cols, device=w.device)
+    w, h, col_scale = w[:, perm], h[perm][:, perm], col_scale[:, perm]
+    hinv, _ = damped_inverse_cholesky(h, damp)
+
+    out = torch.zeros(rows, cols, device=w.device)
+    loss = torch.zeros(rows, device=w.device)
+    for i1 in range(0, cols, block_size):
+        i2 = min(i1 + block_size, cols)
+        w1 = w[:, i1:i2].clone()
+        err1 = torch.zeros_like(w1)
+        hinv1 = hinv[i1:i2, i1:i2]
+        for i in range(i2 - i1):
+            s = col_scale[:, i1 + i]
+            col_w = w1[:, i]
+            dq = codec.snap(col_w / s) * s
+            d = hinv1[i, i]
+            out[:, i1 + i] = dq
+            loss += (col_w - dq).pow(2) / d.pow(2) / 2
+            err = (col_w - dq) / d
+            w1[:, i:] -= err.unsqueeze(1) * hinv1[i, i:].unsqueeze(0)
+            err1[:, i] = err
+        w[:, i2:] -= err1 @ hinv[i1:i2, i2:]
+
+    unperm = torch.empty_like(perm)
+    unperm[perm] = torch.arange(cols, device=w.device)
+    out = out[:, unperm]
+    return TableGPTQResult(codec.encode_with_scale(out, scale), out, float(loss.sum()))
 
 
 def output_error(weight: Tensor, approx: Tensor, hessian: Tensor) -> float:

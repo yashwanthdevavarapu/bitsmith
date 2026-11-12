@@ -7,6 +7,19 @@ uses Semantic Versioning.
 
 ### Added
 
+- NF4 codec (`nf4`): 16 normal-quantile levels with an fp16 absmax per block. The table
+  is computed from the normal quantile function and tested against the published values.
+- OCP Microscaling codecs `mxfp4` and `mxint8`: 32-element blocks with a shared E8M0
+  scale, FP4 E2M1 or INT8 elements, following the MX v1.0 rules for the shared exponent
+  and saturation (ADR 0011).
+- AWQ works with the new formats; `bitsmith hf --configs` gains `nf4`, `nf4+awq`,
+  `mxfp4`, `mxfp4+awq` and `mxint8`, and the default sweep includes `nf4-g64` and `mxfp4`.
+- GPTQ for NF4, MXFP4 and MXINT8 (`gptq_quantize_table`, `--configs nf4+gptq mxfp4+gptq`):
+  the codecs expose a `TableCodec` interface (block scales, grid rounding, encode with
+  fixed scales), so GPTQ rounds each column onto the real grid (ADR 0012).
+- `QLinear.from_buffers` and a `quantize_model(encoded=...)` argument for ready codec
+  buffers.
+- Technical guide sections on NF4, MX and GPTQ on grid formats; tests with known values.
 - Apache 2.0 license, Code of Conduct, security policy, citation file and roadmap.
 - Contributor guide with a first-contribution walkthrough and label reference.
 - Issue templates for new formats and benchmark results, a contact link to Discussions,
@@ -14,6 +27,13 @@ uses Semantic Versioning.
 - `scripts/github_bootstrap.py`, which creates the project labels, milestones and starter
   issues on GitHub.
 - Package metadata: license, author and project links.
+
+### Changed
+
+- `fp8_encode` shares its nearest-even table search (`round_to_table`) with FP4.
+- Sweeps keep the reference weights on the CPU, which saves one model's worth of GPU
+  memory, and release cached GPU memory between configs.
+- Result files are always written with LF line endings, also on Windows.
 
 ## [0.2.0] - 2026-11-10
 

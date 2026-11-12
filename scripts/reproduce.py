@@ -20,11 +20,23 @@ GPU_MODELS = [
     ("Qwen/Qwen2.5-1.5B", "qwen2.5_1.5b"),
 ]
 
+HF_ARGS = [
+    *("--device", "cuda", "--dtype", "bfloat16", "--eval-tokens", "0"),
+    *("--window", "1024", "--stride", "512", "--n-calib", "128", "--calib-len", "512"),
+]
+# (output prefix, configs); every sweep also measures the bf16 baseline
+GPU_SWEEPS = [
+    ("gpu", ["int8", "fp8-e4m3", "w8a8", "w8a8+smoothquant", "int4", "int4+awq", "int4+gptq", "sparse24", "ternary"]),
+    ("gpu_formats", ["nf4", "mxfp4", "mxint8"]),
+    ("gpu_formats_awq", ["nf4+awq", "mxfp4+awq"]),
+    ("gpu_formats_gptq", ["nf4+gptq", "mxfp4+gptq"]),
+]
+
 
 def run(args: list[str], out: str) -> None:
     print(f"-> {' '.join(args)}  > results/{out}", flush=True)
     proc = subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True, check=True)
-    (RESULTS / out).write_text(proc.stdout, encoding="utf-8")
+    (RESULTS / out).write_text(proc.stdout, encoding="utf-8", newline="\n")
 
 
 def main() -> None:
@@ -44,32 +56,22 @@ def main() -> None:
     if args.gpu:
         run(["scripts/bench_kernels.py", "--json", "results/kernels_rtx3090.json"], "kernels_rtx3090.txt")
         for model, tag in GPU_MODELS:
-            run(
-                [
-                    "-m",
-                    "bitsmith",
-                    "hf",
-                    "--model",
-                    model,
-                    "--device",
-                    "cuda",
-                    "--dtype",
-                    "bfloat16",
-                    "--eval-tokens",
-                    "0",
-                    "--window",
-                    "1024",
-                    "--stride",
-                    "512",
-                    "--n-calib",
-                    "128",
-                    "--calib-len",
-                    "512",
-                    "--json",
-                    f"results/gpu_{tag}.json",
-                ],
-                f"gpu_{tag}.txt",
-            )
+            for prefix, configs in GPU_SWEEPS:
+                run(
+                    [
+                        "-m",
+                        "bitsmith",
+                        "hf",
+                        "--model",
+                        model,
+                        *HF_ARGS,
+                        "--configs",
+                        *configs,
+                        "--json",
+                        f"results/{prefix}_{tag}.json",
+                    ],
+                    f"{prefix}_{tag}.txt",
+                )
     subprocess.run([sys.executable, "scripts/make_figures.py"], cwd=ROOT, check=True)
 
 

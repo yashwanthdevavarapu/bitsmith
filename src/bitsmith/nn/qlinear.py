@@ -101,6 +101,21 @@ class QLinear(nn.Module):
             act_bits=act_bits,
         )
 
+    @classmethod
+    def from_buffers(
+        cls,
+        linear: nn.Linear,
+        scheme: str,
+        group_size: int,
+        buffers: dict[str, Tensor],
+        *,
+        act_bits: int | None = None,
+    ) -> QLinear:
+        """Wrap buffers already produced by the codec of ``scheme`` (GPTQ on grid formats)."""
+        codec = make_codec(scheme, group_size)
+        moved = {k: v.to(linear.weight.device) for k, v in buffers.items()}
+        return cls(linear.in_features, linear.out_features, codec, moved, bias=linear.bias, act_bits=act_bits)
+
     # runtime --------------------------------------------------------------------------
     def packed_buffers(self) -> dict[str, Tensor]:
         return {name: getattr(self, name) for name in self._buffer_names}

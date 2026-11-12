@@ -5,6 +5,8 @@ through the library. Each section names the file that implements it.
 
 1. [Uniform quantization](#1-uniform-quantization)
 2. [FP8 emulation](#2-fp8-emulation)
+   - [NF4](#nf4)
+   - [MX microscaling](#mx-microscaling)
 3. [Bit packing](#3-bit-packing)
 4. [2:4 structured sparsity](#4-24-structured-sparsity)
 5. [QLinear and model conversion](#5-qlinear-and-model-conversion)
@@ -73,6 +75,51 @@ for bit with PyTorch's native `float8_e4m3fn` and `float8_e5m2` casts on 45,000 
 Relative error is bounded by half an ulp: `2^-4` for E4M3 and `2^-3` for E5M2 in the
 normal range. Unlike integers, FP8 spends its levels logarithmically, which suits
 bell-shaped weight distributions with a few large values.
+
+### NF4
+
+`src/bitsmith/quant/nf4.py`
+
+NF4 (NormalFloat4, from QLoRA) keeps 4-bit codes but spaces the 16 levels like a normal
+distribution instead of evenly. Each block of G weights is divided by its absmax, so values
+lie in `[-1, 1]`, and each value is replaced by the index of the nearest level:
+
+```
+pos = Phi^-1(linspace(0.9677083, 0.5, 9)[:8])      8 positive quantiles
+neg = -Phi^-1(linspace(0.9677083, 0.5, 8)[:7])     7 negative quantiles
+levels = sort(neg, 0, pos) / max|levels|            exactly -1, 0 and 1
+```
+
+`Phi^-1` is the normal quantile function. The table is built from this formula at import
+time and tested against the published values to 1e-6. Storage: 4-bit codes packed with
+the INT4 layout plus one fp16 absmax per block, so `4 + 16 / G` bits per weight, the same
+as `int4-sym`. On a Gaussian weight NF4 beats `int4-sym` by about 1.8 dB at G = 128,
+because more levels sit where most weights are.
+
+### MX microscaling
+
+`src/bitsmith/quant/mx.py`
+
+The OCP Microscaling formats share one 8-bit power-of-two scale (E8M0, value
+`2^(e - 127)`, `0xFF` is NaN) across a block of 32 elements:
+
+```
+shared = floor(log2(absmax)) - emax_elem      emax_elem = 2 for FP4, 0 for INT8
+codes  = quantize(x / 2^shared)               saturating
+```
+
+| Format | Element | Element values | Bits per weight |
+|--------|---------|----------------|----------------:|
+| MXFP4 | FP4 E2M1 (bias 1) | 0, 0.5, 1, 1.5, 2, 3, 4, 6 and negatives | 4.25 |
+| MXINT8 | int8 times 2^-6 | -127/64 to 127/64 | 8.25 |
+
+`floor(log2(absmax))` is read exactly from `frexp`, with no floating-point `log2`. FP4
+elements are encoded with the same nearest-even table search as FP8. A power-of-two scale
+cannot map the absmax onto the largest element exactly: after scaling, the FP4 absmax
+lands in `[4, 8)`, so values between 6 and 8 saturate to 6. This is what the
+specification prescribes, and it costs MXFP4 about 1.5 dB against NF4 on Gaussian
+weights. In exchange, hardware can apply the scale as an exponent add instead of a
+multiply.
 
 ## 3. Bit packing
 
@@ -176,6 +223,16 @@ applied lazily in blocks for speed. Dampening `H += 0.01 * mean(diag H) * I` kee
 Cholesky factorization stable, and columns whose input is always zero are zeroed. When
 `H` is the identity, there is nothing to compensate and GPTQ returns exactly the round to
 nearest result; a unit test checks this.
+
+**GPTQ on grid formats** (`gptq_quantize_table`). Nothing in the update above depends on
+the levels being evenly spaced: "quantize column `i`" only has to return the nearest
+representable value. NF4 and the MX codecs therefore expose a small interface
+(`TableCodec`): `scale_buffer` picks the stored block scales, `snap` rounds scaled values
+onto the grid, and `encode_with_scale` stores weights with given scales. GPTQ fixes the
+scales from the original weights, then for each column computes `q_i = snap(w_i / s) * s`
+and runs the same update. The result is exactly what the codec stores (a test decodes the
+buffers and compares bit for bit). On the correlated test inputs, GPTQ lowers the expected
+output error about 4x for NF4, MXFP4 and MXINT8, the same as for INT4 (3.8x).
 
 ## 7. Evaluation
 
