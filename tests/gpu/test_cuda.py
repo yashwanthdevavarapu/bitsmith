@@ -176,3 +176,17 @@ def test_int8_fused_matches_pytorch_path(rows: int, dtype: torch.dtype) -> None:
     plain = int8_linear(x, bufs["qweight"], bufs["scale"], q.bias, fused=False)
     assert fused.dtype == dtype
     torch.testing.assert_close(fused.float(), plain.float(), rtol=1e-2, atol=1e-2)
+
+
+@needs_triton
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+def test_int8_fused_input_scale_matches_separate_multiply(dtype: torch.dtype) -> None:
+    from bitsmith.kernels.int8_mm import _quantize_rows_triton, quantize_rows_int8
+
+    torch.manual_seed(0)
+    x = (torch.randn(40, 1536, device=CUDA) * torch.rand(1536, device=CUDA) * 4).to(dtype)
+    s = (torch.rand(1536, device=CUDA) + 0.25).to(torch.float16)
+    codes, scale = _quantize_rows_triton(x, s)
+    codes_ref, scale_ref = quantize_rows_int8(x * s.to(dtype))
+    torch.testing.assert_close(scale, scale_ref, rtol=0, atol=0)
+    assert torch.equal(codes[:40], codes_ref)

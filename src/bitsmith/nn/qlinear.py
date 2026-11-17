@@ -157,13 +157,13 @@ class QLinear(nn.Module):
         self.backend = backend
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.input_scale is not None:
-            x = x * self.input_scale.to(x.dtype)
-        if self.backend == "int8":
+        if self.backend == "int8":  # the input scale is applied inside the quantization pass
             from bitsmith.kernels.int8_mm import int8_linear
 
             bufs = self.packed_buffers()
-            return int8_linear(x, bufs["qweight"], bufs["scale"], self.bias)
+            return int8_linear(x, bufs["qweight"], bufs["scale"], self.bias, input_scale=self.input_scale)
+        if self.input_scale is not None:
+            x = x * self.input_scale.to(x.dtype)
         if self.backend == "triton" and x.is_cuda:
             from bitsmith.kernels import int4_linear
 
