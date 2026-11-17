@@ -231,6 +231,26 @@ def test_int8_backend_matches_simulated_w8a8() -> None:
         QLinear.from_linear(_linear(), "int4", 32, act_bits=8).set_backend("int8")
 
 
+def test_int8_backend_applies_input_scale_inside() -> None:
+    """A smoothed W8A8 layer gives the same result on the int8 backend as on the reference."""
+    from bitsmith.kernels.int8_mm import int8_linear, quantize_rows_int8
+
+    torch.manual_seed(0)
+    lin = nn.Linear(64, 48)
+    s = torch.rand(64) + 0.5
+    q = QLinear.from_linear(lin, "int8", weight=lin.weight * s, input_scale=1 / s, act_bits=8)
+    x = torch.randn(5, 64)
+    ref = q(x)
+    q.set_backend("int8")
+    torch.testing.assert_close(q(x), ref, rtol=1e-5, atol=1e-5)
+    codes, scale = quantize_rows_int8(x, 1 / s)
+    codes_ref, scale_ref = quantize_rows_int8(x * (1 / s))
+    assert torch.equal(codes, codes_ref) and torch.equal(scale, scale_ref)
+    bufs = q.packed_buffers()
+    with pytest.raises(ValueError, match="input_scale"):
+        int8_linear(x, bufs["qweight"], bufs["scale"], input_scale=torch.ones(63))
+
+
 def test_int8_linear_validation() -> None:
     from bitsmith.kernels.int8_mm import int8_linear, int8_mm_supported
 
