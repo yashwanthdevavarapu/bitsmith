@@ -347,6 +347,15 @@ The activation codes are computed by the same function as the simulated path, so
 backends agree to float rounding (tested). `torch._int_mm` needs more than 16 rows and
 inner dimensions divisible by 8; shorter inputs are padded with zero rows.
 
+A smoothed layer computes `(x * input_scale) W^T`. The quantization kernel multiplies each
+element as it loads it and rounds the product to the activation dtype, exactly what the
+separate multiply did, so the codes do not change and one pass over the activations is
+saved (ADR 0019).
+
+Where it pays off: INT8 tensor cores help GEMMs with many rows, so W8A8 speeds up prefill
+(the prompt's forward pass), not single-token decoding. `scripts/bench_prefill.py` measures
+whole models, eager and replayed from a CUDA graph.
+
 ## 10. KV-cache quantization
 
 `src/bitsmith/kv/quant.py`, `src/bitsmith/kv/hf.py`

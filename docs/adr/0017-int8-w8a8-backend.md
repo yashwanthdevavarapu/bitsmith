@@ -27,6 +27,8 @@ cores, which on Ampere run at twice the fp16 rate.
 ## Consequences
 
 - Measured results are in `results/int8_rtx3090.txt` and the README.
-- No custom kernel: the activation quantization is a few PyTorch operations before the
-  GEMM. Fusing it into the previous layer's output would save one pass over the
-  activations.
+- In plain PyTorch the per-token quantization and the INT32 rescale were about a dozen
+  passes over the activations and the output, more than the GEMM itself on small layers.
+  Two Triton kernels now do them in one pass each, bit for bit equal to the PyTorch path,
+  and the SmoothQuant input scale is applied inside the quantization pass (ADR 0019).
+  Fusing the quantization into the previous layer's output would save the remaining pass.
