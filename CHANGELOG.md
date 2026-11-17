@@ -38,6 +38,13 @@ uses Semantic Versioning.
 - GPT-2 style `Conv1D` layers are converted like `nn.Linear` (`linearize_conv1d`), in
   `quantize_model`, `calibrate_and_quantize` and the sweeps.
 - `scripts/kv_channel_stats.py`: how uneven key and value channels are in real models.
+- `scripts/bench_prefill.py`: end to end prefill speed of bf16, W8A8 (real and simulated)
+  and INT4, eager and CUDA graph, with perplexity from the timed backend (ADR 0019).
+  W8A8 on INT8 tensor cores prefills Qwen2.5-1.5B 1.19x to 1.39x faster than bf16
+  (`results/prefill_rtx3090_shared.*`).
+- `int8_linear(input_scale=...)`: the SmoothQuant or AWQ input scale is applied inside the
+  fused quantization kernel, bit for bit equal to multiplying first; the `int8` backend
+  uses it.
 - `pack_int4`, `pack_int3` and `pack_int2` take `validate=False` to skip the range check,
   which forces a GPU to host synchronization.
 - `docs/assets/frontier_gpu_models.png`: the best perplexity at each bits per weight.

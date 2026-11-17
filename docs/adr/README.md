@@ -23,5 +23,6 @@ Records are immutable once accepted; a later record can supersede an earlier one
 | [0016](0016-cuda-graph-decoding.md) | Decode with a static cache and a CUDA graph per token | Accepted |
 | [0017](0017-int8-w8a8-backend.md) | Real INT8 W8A8 through torch._int_mm | Accepted |
 | [0018](0018-smoothquant-per-layer-search.md) | SmoothQuant chooses per layer, and may choose not to smooth | Accepted |
+| [0019](0019-end-to-end-w8a8-prefill.md) | W8A8 measured end to end on prefill, with the input scale fused | Accepted |
 
 New records start from [`template.md`](template.md).

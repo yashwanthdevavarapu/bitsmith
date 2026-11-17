@@ -5,7 +5,7 @@
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-3776ab)
 ![pytorch](https://img.shields.io/badge/pytorch-2.2%2B-ee4c2c)
 [![CI](https://github.com/yashwanthdevavarapu/bitsmith/actions/workflows/ci.yml/badge.svg)](https://github.com/yashwanthdevavarapu/bitsmith/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-345%20CPU%20%2B%20107%20GPU-1baf7a)
+![tests](https://img.shields.io/badge/tests-346%20CPU%20%2B%20109%20GPU-1baf7a)
 ![coverage](https://img.shields.io/badge/coverage-97%25-1baf7a)
 ![types](https://img.shields.io/badge/mypy-clean-2a78d6)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -24,12 +24,12 @@ real models, and reports what each technique actually costs:
 - **Calibration**: SmoothQuant, AWQ and GPTQ (block-sequential, with activation ordering),
   with GPTQ working on INT4, INT3, INT2, NF4 and MX alike
 - **Kernels and runtime**: a fused INT4 dequantize + matmul in Triton (up to 1.33x faster than
-  fp16 cuBLAS at batch 1), real INT8 W8A8 on tensor cores, and CUDA graph decoding (1.9x to
-  9x faster than `generate`)
+  fp16 cuBLAS at batch 1), real INT8 W8A8 on tensor cores (prefill 1.19x to 1.39x faster
+  than bf16 on Qwen2.5-1.5B), and CUDA graph decoding (1.9x to 9x faster than `generate`)
 - **Evaluation**: full WikiText-2 perplexity on three models, kernel timing against the
   bandwidth roofline, and a Pareto sweep
-- **Engineering**: 345 CPU tests at 97% coverage plus 107 GPU tests, CI on Linux, Windows and
-  macOS, and 18 architecture decision records
+- **Engineering**: 346 CPU tests at 97% coverage plus 109 GPU tests, CI on Linux, Windows and
+  macOS, and 19 architecture decision records
 
 The core library depends only on `torch` and `numpy`.
 
@@ -296,6 +296,39 @@ smallest layer at 1 to 16 rows is slower. Before the two Triton kernels, the PyT
 quantize and rescale steps took more time than the GEMM and the backend lost to fp16 on
 every Qwen2.5-1.5B layer.
 
+### Speed: W8A8 makes a whole model faster
+
+Layer timings leave out attention, norms and the residual stream, which stay in bf16. The
+end to end test is prefill, the forward pass over the prompt, whose linear layers have as
+many rows as there are tokens (ADR 0019). Speed against bf16, CUDA graph replay, the
+configurations timed in interleaved rounds on the shared GPU, perplexity on the first 32k
+WikiText-2 test tokens from the same backend
+([`results/prefill_rtx3090_shared.txt`](results/prefill_rtx3090_shared.txt)):
+
+| Qwen2.5-1.5B | 1 x 128 | 1 x 512 | 1 x 2048 | 8 x 512 | Perplexity |
+|--------------|--------:|--------:|---------:|--------:|-----------:|
+| bf16 (cuBLAS) | 9.9 ms | 30.3 ms | 110.6 ms | 211.6 ms | 10.100 |
+| W8A8 SmoothQuant, INT8 tensor cores | **1.19x** | **1.26x** | **1.32x** | **1.39x** | 10.200 (+1.0%) |
+| W8A8 SmoothQuant, simulated | 0.20x | 0.34x | 0.43x | 0.46x | 10.216 |
+| INT4-g64, fused Triton | 0.37x | 0.43x | 0.49x | 0.51x | 11.001 |
+
+![Prefill speed against bf16 on three models](docs/assets/prefill_rtx3090.png)
+
+1. **W8A8 is 1.19x to 1.39x faster than bf16 on Qwen2.5-1.5B** for +1.0% perplexity, and the
+   gain grows with the number of tokens. It is the first configuration in bitsmith that
+   speeds up a whole model, not only a layer.
+2. **Model size decides.** On Qwen2.5-0.5B W8A8 is at parity (0.89x to 1.05x), on
+   SmolLM2-135M slower (0.65x to 0.99x): their layers are too small for the INT8 GEMM to
+   outweigh the two extra kernels around it.
+3. **Without graphs, short prompts lose.** W8A8 launches three kernels per layer instead of
+   one, so a plain PyTorch call is launch bound on short prompts (49 ms eager against 24 ms
+   of GPU work at 1 x 512 on Qwen2.5-1.5B): 0.44x to 0.65x eager up to 512 tokens, 1.30x at
+   1 x 2048 and 1.36x at 8 x 512.
+4. **The real and simulated backends agree** on perplexity (10.200 and 10.216), so the
+   accuracy tables above hold for the fast path.
+5. **INT4 is for decoding, not prefill.** The fused INT4 GEMM runs at about half of cuBLAS
+   speed on many rows; it pays off at batch 1 decode, where weight bandwidth is the limit.
+
 ![bitsmith hf on Qwen2.5-1.5B](docs/assets/terminal_hf.png)
 
 ---
@@ -487,8 +520,8 @@ tests/
   gpu/         CUDA parity and fused kernel tests (skipped without a GPU)
 examples/      01 quickstart, 02 calibration, 03 roofline, 04 real model
 scripts/       reproduce.py, make_figures.py, bench_kernels.py, bench_int8.py, bench_decode.py,
-               bench_gptq.py, kv_channel_stats.py
-docs/          guide/ (math, layouts, kernel), adr/ (18 decision records), assets/ (figures)
+               bench_prefill.py, bench_gptq.py, kv_channel_stats.py
+docs/          guide/ (math, layouts, kernel), adr/ (19 decision records), assets/ (figures)
 results/       every committed number, as JSON and text
 .github/       CI, benchmark and release workflows, issue and PR templates
 ```
@@ -499,7 +532,7 @@ results/       every committed number, as JSON and text
 make check       # ruff lint + format check, mypy, pytest
 make test-fast   # skip the slow end to end tests
 make coverage    # HTML coverage report
-pytest tests/gpu # on a CUDA machine: 107 GPU tests
+pytest tests/gpu # on a CUDA machine: 109 GPU tests
 ```
 
 What the tests pin down, beyond "it runs":
@@ -550,6 +583,7 @@ Recorded in [`docs/adr/`](docs/adr/README.md):
 | [0016](docs/adr/0016-cuda-graph-decoding.md) | decode with a static cache and the one-token step replayed from a CUDA graph |
 | [0017](docs/adr/0017-int8-w8a8-backend.md) | real W8A8 on `torch._int_mm`, with the same activation codes as the simulated path |
 | [0018](docs/adr/0018-smoothquant-per-layer-search.md) | SmoothQuant picks its strength per layer on calibration data, including no smoothing |
+| [0019](docs/adr/0019-end-to-end-w8a8-prefill.md) | W8A8 measured end to end on prefill (eager and CUDA graph), input scale fused into quantization |
 
 ## Reproducing everything
 
@@ -568,7 +602,9 @@ numbers are deterministic for a given PyTorch version; timings depend on the mac
 - The fused kernel reaches about 25% of peak bandwidth; production CUDA kernels go further.
 - CUDA graph decoding (`GraphDecoder`) is batch 1 and greedy only, with a 16-bit cache.
 - The INT8 backend is slower than fp16 on small layers at 1 to 16 rows; activations are
-  quantized in a separate kernel rather than inside the previous layer.
+  quantized in a separate kernel rather than inside the previous layer. End to end it only
+  pays off on larger models: prefill is at or below bf16 speed on the 135M and 0.5B models.
+- The fused INT4 kernel is a decode kernel: INT4 prefill runs at 0.4x to 0.7x of bf16.
 - Speed results were measured on a shared RTX 3090 under load from other jobs.
 - The quantized KV cache saves memory, not time: attention reads a dequantized copy.
 - Results cover models up to 1.5B parameters.
