@@ -330,6 +330,48 @@ def memory_chart(out_name: str) -> None:
     _save(fig, out_name)
 
 
+def prefill_chart(result_file: Path, out_name: str) -> None:
+    """End-to-end prefill speed against bf16, per model and prompt shape."""
+    if not result_file.exists():
+        return
+    data = json.loads(result_file.read_text(encoding="utf-8"))
+    order = [label for _, label in GPU_MODELS]  # smallest model first
+    names = {r["model"] for r in data["records"]}
+    models = sorted(names, key=lambda m: order.index(m.split("/")[1]) if m.split("/")[1] in order else len(order))
+    series = [
+        (("w8a8 smoothquant", "int8 tensor cores"), "W8A8, INT8 tensor cores", ORANGE),
+        (("int4-g64", "fused Triton"), "INT4, fused Triton", BLUE),
+        (("w8a8 smoothquant", "simulated"), "W8A8, simulated", INK_2),
+    ]
+    fig, axes = plt.subplots(1, len(models), figsize=(4 * len(models), 4), squeeze=False, sharey=True)
+    for ax, model in zip(axes[0], models, strict=True):
+        recs = [r for r in data["records"] if r["model"] == model]
+        shapes = list(dict.fromkeys((r["batch"], r["prompt"]) for r in recs))
+        width = 0.8 / len(series)
+        for i, (key, label, color) in enumerate(series):
+            by_shape = {(r["batch"], r["prompt"]): r for r in recs if (r["weights"], r["backend"]) == key}
+            xs = [j + (i - (len(series) - 1) / 2) * width for j, sh in enumerate(shapes) if sh in by_shape]
+            ys = [by_shape[sh]["speedup_vs_bf16"] for sh in shapes if sh in by_shape]
+            ax.bar(xs, ys, width=width, color=color, label=label)
+        ax.axhline(1.0, color=INK, linewidth=1)
+        ax.set_xticks(range(len(shapes)))
+        ax.set_xticklabels([f"{b} x {t}" for b, t in shapes], fontsize=8.5)
+        ax.set_xlabel("batch x prompt tokens")
+        ax.set_title(model.split("/")[1], loc="left", fontsize=11.5)
+        ax.set_axisbelow(True)
+        ax.grid(axis="x", visible=False)
+    axes[0][0].set_ylabel("GPU time speedup vs bf16")
+    axes[0][0].legend(loc="upper left", fontsize=8.5)
+    fig.suptitle(
+        f"Prefill speed against bf16, CUDA graph replay on a shared {data['gpu'].replace('NVIDIA GeForce ', '')}",
+        x=0.01,
+        ha="left",
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    _save(fig, out_name)
+
+
 def kernel_chart(result_file: Path, out_name: str) -> None:
     data = json.loads(result_file.read_text(encoding="utf-8"))
     recs = [r for r in data["records"] if r["rows"] == 1]
@@ -369,6 +411,8 @@ def main() -> None:
     frontier_chart("frontier_gpu_models.png")
     kv_chart("kv_gpu_models.png")
     memory_chart("memory_gpu_models.png")
+    clean = RESULTS / "prefill_rtx3090.json"  # an idle GPU run replaces the shared one
+    prefill_chart(clean if clean.exists() else RESULTS / "prefill_rtx3090_shared.json", "prefill_rtx3090.png")
     if (RESULTS / "kernels_rtx3090.json").exists():
         kernel_chart(RESULTS / "kernels_rtx3090.json", "kernels_rtx3090.png")
     sqnr_chart("sqnr_formats.png")

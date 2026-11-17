@@ -35,10 +35,12 @@ GPU_SWEEPS = [
 ]
 
 
-def run(args: list[str], out: str) -> None:
-    print(f"-> {' '.join(args)}  > results/{out}", flush=True)
+def run(args: list[str], out: str | None) -> None:
+    """Run a Python command from the repository root; save its output as ``results/<out>``."""
+    print(f"-> {' '.join(args)}" + (f"  > results/{out}" if out else ""), flush=True)
     proc = subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True, check=True)
-    (RESULTS / out).write_text(proc.stdout, encoding="utf-8", newline="\n")
+    if out:
+        (RESULTS / out).write_text(proc.stdout, encoding="utf-8", newline="\n")
 
 
 def main() -> None:
@@ -79,6 +81,13 @@ def main() -> None:
                 ["-m", "bitsmith", "kv", "--model", model, *KV_ARGS, "--json", f"results/kv_{tag}.json"],
                 f"kv_{tag}.txt",
             )
+        for model, tag in GPU_MODELS:  # one process per model keeps GPU memory free
+            run(["scripts/bench_prefill.py", "--models", model, "--json", f"results/prefill_run_{tag}.json"], None)
+        prefill_runs = [f"results/prefill_run_{tag}.json" for _, tag in GPU_MODELS]
+        run(
+            ["scripts/bench_prefill.py", "--merge", *prefill_runs, "--json", "results/prefill_rtx3090.json"],
+            "prefill_rtx3090.txt",
+        )
     subprocess.run([sys.executable, "scripts/make_figures.py"], cwd=ROOT, check=True)
 
 
