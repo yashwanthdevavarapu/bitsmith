@@ -95,6 +95,7 @@ def test_state_dict_round_trip(scheme: str) -> None:
 
 
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
+@pytest.mark.usefixtures("cpu_half_matmul")
 def test_half_precision_layer_with_bias(dtype: torch.dtype) -> None:
     lin = _linear().to(dtype)
     q = QLinear.from_linear(lin, "int4", 64)
