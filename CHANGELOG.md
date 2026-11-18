@@ -42,6 +42,11 @@ uses Semantic Versioning.
   and INT4, eager and CUDA graph, with perplexity from the timed backend (ADR 0019).
   W8A8 on INT8 tensor cores prefills Qwen2.5-1.5B 1.19x to 1.39x faster than bf16
   (`results/prefill_rtx3090_shared.*`).
+- INT4 prefill path (ADR 0020): `int4_dequantize` unpacks a packed INT4 weight in one
+  autotuned Triton kernel, and `int4_linear` uses it with cuBLAS for many rows (64 or more,
+  or any layer with `K >= N`), with `path="auto" | "fused" | "dequant"` to force a path.
+  INT4 layers with 256 or more rows are 1.6x to 3.1x faster; `scripts/bench_int4_prefill.py`
+  measures the switch point (`results/int4_prefill_rtx3090_shared.*`).
 - `int8_linear(input_scale=...)`: the SmoothQuant or AWQ input scale is applied inside the
   fused quantization kernel, bit for bit equal to multiplying first; the `int8` backend
   uses it.
@@ -61,6 +66,9 @@ uses Semantic Versioning.
 
 ### Changed
 
+- The CPU test of half-precision layers is skipped on machines where PyTorch's fp16 or bf16
+  CPU matmul crashes with an illegal instruction (seen on some GitHub Windows runners); a
+  child process probes it once per session.
 - `calibrate_and_quantize(method="smoothquant")` now picks the smoothing strength per layer
   on calibration data, including no smoothing (ADR 0018). A fixed `alpha = 0.5` made GPT-2
   73% worse; `alpha=` keeps the old behaviour. W8A8 + SmoothQuant results were re-measured.
