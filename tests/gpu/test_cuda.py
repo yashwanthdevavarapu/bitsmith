@@ -108,6 +108,38 @@ def test_triton_kernel_handles_padding_and_batches() -> None:
 
 
 @needs_triton
+@pytest.mark.parametrize("scheme", ["int4", "int4-sym"])
+@pytest.mark.parametrize("group", [32, 64, 128])
+@pytest.mark.parametrize("in_features", [320, 100])  # 100 is not a multiple of the group
+def test_int4_dequantize_matches_codec(scheme: str, group: int, in_features: int) -> None:
+    from bitsmith.kernels import int4_dequantize
+
+    lin = nn.Linear(in_features, 72).to(CUDA, torch.float16)
+    q = QLinear.from_linear(lin, scheme, group)
+    bufs = q.packed_buffers()
+    w = int4_dequantize(bufs["qweight"], bufs["scale"], bufs.get("zero"), in_features, group, torch.float32)
+    torch.testing.assert_close(w, q.dequantized_weight(torch.float32), rtol=1e-6, atol=1e-7)
+
+
+@needs_triton
+@pytest.mark.parametrize("rows", [5, 64, 300])
+def test_int4_prefill_paths_agree(rows: int) -> None:
+    """The fused GEMM and dequantize + cuBLAS use the same weights; only summation order differs."""
+    torch.manual_seed(0)
+    lin = nn.Linear(100, 48, bias=True).to(CUDA, torch.bfloat16)
+    q = QLinear.from_linear(lin, "int4", 64)
+    bufs = q.packed_buffers()
+    x = torch.randn(rows, 100, device=CUDA, dtype=torch.bfloat16)
+    args = (x, bufs["qweight"], bufs["scale"], bufs["zero"], 100, 64, q.bias)
+    fused = int4_linear(*args, path="fused")
+    dense = int4_linear(*args, path="dequant")
+    assert dense.shape == fused.shape == (rows, 48)
+    assert sqnr_db(fused.float(), dense.float()) > 40
+    with pytest.raises(ValueError, match="path"):
+        int4_linear(*args, path="cublas")
+
+
+@needs_triton
 def test_triton_model_end_to_end() -> None:
     torch.manual_seed(0)
     model = TinyLM(TinyLMConfig(vocab_size=64, dim=128, n_layers=2, n_heads=4, max_len=64)).to(CUDA, torch.float16)
