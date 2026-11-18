@@ -372,6 +372,43 @@ def prefill_chart(result_file: Path, out_name: str) -> None:
     _save(fig, out_name)
 
 
+def int4_prefill_chart(result_file: Path, out_name: str) -> None:
+    """INT4 layers with many rows: fused GEMM against dequantize + cuBLAS, as a share of fp16 speed."""
+    if not result_file.exists():
+        return
+    data = json.loads(result_file.read_text(encoding="utf-8"))
+    layers = list(dict.fromkeys(r["layer"] for r in data["records"]))
+    fig, axes = plt.subplots(2, 3, figsize=(12, 6.4), sharex=True, sharey=True)
+    for ax, layer in zip(axes.flat, layers, strict=False):
+        recs = [r for r in data["records"] if r["layer"] == layer]
+        rows = [r["rows"] for r in recs]
+        for key, label, color in (
+            ("dequant_cublas_us", "dequantize + cuBLAS", ORANGE),
+            ("fused_gemm_us", "fused Triton GEMM", BLUE),
+        ):
+            ax.plot(rows, [r["fp16_us"] / r[key] for r in recs], marker="o", ms=4, color=color, label=label)
+        ax.axhline(1.0, color=INK, linewidth=1)
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(rows)
+        ax.set_xticklabels([str(r) for r in rows], fontsize=8)
+        ax.set_title(layer.replace(" (", "\n("), loc="left", fontsize=10.5)
+        ax.set_ylim(0, 1.15)
+    for ax in axes[1]:
+        ax.set_xlabel("activation rows (tokens)")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("speed vs fp16 cuBLAS")
+    axes[0][0].legend(loc="lower right", fontsize=8.5)
+    fig.suptitle(
+        f"INT4 layers with many rows on a shared {data['gpu'].replace('NVIDIA GeForce ', '')}: "
+        "unpack once, then cuBLAS",
+        x=0.01,
+        ha="left",
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    _save(fig, out_name)
+
+
 def kernel_chart(result_file: Path, out_name: str) -> None:
     data = json.loads(result_file.read_text(encoding="utf-8"))
     recs = [r for r in data["records"] if r["rows"] == 1]
@@ -411,6 +448,7 @@ def main() -> None:
     frontier_chart("frontier_gpu_models.png")
     kv_chart("kv_gpu_models.png")
     memory_chart("memory_gpu_models.png")
+    int4_prefill_chart(RESULTS / "int4_prefill_rtx3090_shared.json", "int4_prefill_rtx3090.png")
     clean = RESULTS / "prefill_rtx3090.json"  # an idle GPU run replaces the shared one
     prefill_chart(clean if clean.exists() else RESULTS / "prefill_rtx3090_shared.json", "prefill_rtx3090.png")
     if (RESULTS / "kernels_rtx3090.json").exists():

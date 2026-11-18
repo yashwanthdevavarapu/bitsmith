@@ -1,0 +1,19 @@
+Prefill on NVIDIA GeForce RTX 3090: one forward pass, median ms over 7 interleaved rounds of 5; graph = CUDA graph replay (GPU time); perplexity on the first 32k WikiText-2 test tokens
+| model        | weights          | kernel            | batch x prompt | eager ms | eager vs bf16 | graph ms | graph tokens/s | graph vs bf16 | perplexity |
+|--------------|------------------|-------------------|----------------|---------:|---------------|---------:|---------------:|---------------|------------|
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 128        |    22.06 | 1.00x         |    3.841 |         33,324 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 512        |    22.54 | 1.00x         |    6.353 |         80,595 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 2048       |    24.01 | 1.00x         |    22.23 |         92,111 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 8 x 512        |    35.28 | 1.00x         |    33.34 |        122,865 | 1.00x         | 16.849     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    50.84 | 0.43x         |    4.882 |         26,216 | 0.79x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    50.86 | 0.44x         |    6.729 |         76,092 | 0.94x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    50.96 | 0.47x         |    22.86 |         89,570 | 0.97x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    51.01 | 0.69x         |    37.67 |        108,734 | 0.88x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 128        |    83.05 | 0.27x         |    13.59 |          9,421 | 0.28x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 512        |    82.97 | 0.27x         |    18.37 |         27,877 | 0.35x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 2048       |    83.54 | 0.29x         |    57.59 |         35,561 | 0.39x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 8 x 512        |    113.1 | 0.31x         |    106.9 |         38,313 | 0.31x         | 17.046     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 128        |    40.45 | 0.55x         |    4.382 |         29,212 | 0.88x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 512        |    41.11 | 0.55x         |    6.843 |         74,817 | 0.93x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 2048       |    40.48 | 0.59x         |    22.89 |         89,469 | 0.97x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 8 x 512        |    40.62 | 0.87x         |    34.00 |        120,478 | 0.98x         | 21.590     |

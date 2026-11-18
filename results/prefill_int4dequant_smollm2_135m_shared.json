@@ -1,0 +1,232 @@
+{
+  "gpu": "NVIDIA GeForce RTX 3090",
+  "torch": "2.5.1+cu121",
+  "shapes": [
+    [
+      1,
+      128
+    ],
+    [
+      1,
+      512
+    ],
+    [
+      1,
+      2048
+    ],
+    [
+      8,
+      512
+    ]
+  ],
+  "records": [
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "bf16",
+      "backend": "cuBLAS",
+      "batch": 1,
+      "prompt": 128,
+      "eager_ms": 22.064128875732422,
+      "graph_ms": 3.8410239219665527,
+      "tokens_per_s": 33324.44749119545,
+      "speedup_vs_bf16": 1.0,
+      "eager_speedup_vs_bf16": 1.0,
+      "perplexity": 16.848746950833164
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "bf16",
+      "backend": "cuBLAS",
+      "batch": 1,
+      "prompt": 512,
+      "eager_ms": 22.535167694091797,
+      "graph_ms": 6.3527679443359375,
+      "tokens_per_s": 80594.79025304143,
+      "speedup_vs_bf16": 1.0,
+      "eager_speedup_vs_bf16": 1.0,
+      "perplexity": 16.848746950833164
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "bf16",
+      "backend": "cuBLAS",
+      "batch": 1,
+      "prompt": 2048,
+      "eager_ms": 24.008703231811523,
+      "graph_ms": 22.234111785888672,
+      "tokens_per_s": 92110.71796894557,
+      "speedup_vs_bf16": 1.0,
+      "eager_speedup_vs_bf16": 1.0,
+      "perplexity": 16.848746950833164
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "bf16",
+      "backend": "cuBLAS",
+      "batch": 8,
+      "prompt": 512,
+      "eager_ms": 35.283905029296875,
+      "graph_ms": 33.337345123291016,
+      "tokens_per_s": 122865.21271720418,
+      "speedup_vs_bf16": 1.0,
+      "eager_speedup_vs_bf16": 1.0,
+      "perplexity": 16.848746950833164
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "int8 tensor cores",
+      "batch": 1,
+      "prompt": 128,
+      "eager_ms": 50.83852767944336,
+      "graph_ms": 4.882431983947754,
+      "tokens_per_s": 26216.443039213405,
+      "speedup_vs_bf16": 0.7867030067382205,
+      "eager_speedup_vs_bf16": 0.4340040886875268,
+      "perplexity": 17.026653909186223
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "int8 tensor cores",
+      "batch": 1,
+      "prompt": 512,
+      "eager_ms": 50.855934143066406,
+      "graph_ms": 6.72870397567749,
+      "tokens_per_s": 76091.91931325059,
+      "speedup_vs_bf16": 0.9441295035863573,
+      "eager_speedup_vs_bf16": 0.44311776145329534,
+      "perplexity": 17.026653909186223
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "int8 tensor cores",
+      "batch": 1,
+      "prompt": 2048,
+      "eager_ms": 50.964481353759766,
+      "graph_ms": 22.864864349365234,
+      "tokens_per_s": 89569.74197211258,
+      "speedup_vs_bf16": 0.9724138943560331,
+      "eager_speedup_vs_bf16": 0.47108697261451377,
+      "perplexity": 17.026653909186223
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "int8 tensor cores",
+      "batch": 8,
+      "prompt": 512,
+      "eager_ms": 51.01260757446289,
+      "graph_ms": 37.66988754272461,
+      "tokens_per_s": 108734.06498371888,
+      "speedup_vs_bf16": 0.8849865847218235,
+      "eager_speedup_vs_bf16": 0.6916702891102579,
+      "perplexity": 17.026653909186223
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "simulated",
+      "batch": 1,
+      "prompt": 128,
+      "eager_ms": 83.0545883178711,
+      "graph_ms": 13.58732795715332,
+      "tokens_per_s": 9420.542464540413,
+      "speedup_vs_bf16": 0.28269163253282403,
+      "eager_speedup_vs_bf16": 0.2656581571542727,
+      "perplexity": 17.045541182348426
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "simulated",
+      "batch": 1,
+      "prompt": 512,
+      "eager_ms": 82.97369384765625,
+      "graph_ms": 18.366464614868164,
+      "tokens_per_s": 27876.89469564664,
+      "speedup_vs_bf16": 0.34588953712916504,
+      "eager_speedup_vs_bf16": 0.2715941239818425,
+      "perplexity": 17.045541182348426
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "simulated",
+      "batch": 1,
+      "prompt": 2048,
+      "eager_ms": 83.53587341308594,
+      "graph_ms": 57.5918083190918,
+      "tokens_per_s": 35560.61286794296,
+      "speedup_vs_bf16": 0.38606378988308343,
+      "eager_speedup_vs_bf16": 0.2874059042046306,
+      "perplexity": 17.045541182348426
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "w8a8 smoothquant",
+      "backend": "simulated",
+      "batch": 8,
+      "prompt": 512,
+      "eager_ms": 113.14176177978516,
+      "graph_ms": 106.90969848632812,
+      "tokens_per_s": 38312.707434338205,
+      "speedup_vs_bf16": 0.31182713631499276,
+      "eager_speedup_vs_bf16": 0.3118557151158043,
+      "perplexity": 17.045541182348426
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "int4-g64",
+      "backend": "fused Triton",
+      "batch": 1,
+      "prompt": 128,
+      "eager_ms": 40.45004653930664,
+      "graph_ms": 4.3816962242126465,
+      "tokens_per_s": 29212.43131659601,
+      "speedup_vs_bf16": 0.8766066211394543,
+      "eager_speedup_vs_bf16": 0.5454660936988536,
+      "perplexity": 21.589853425894084
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "int4-g64",
+      "backend": "fused Triton",
+      "batch": 1,
+      "prompt": 512,
+      "eager_ms": 41.10540771484375,
+      "graph_ms": 6.8433918952941895,
+      "tokens_per_s": 74816.7002319527,
+      "speedup_vs_bf16": 0.9283069041690238,
+      "eager_speedup_vs_bf16": 0.5482287841644258,
+      "perplexity": 21.589853425894084
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "int4-g64",
+      "backend": "fused Triton",
+      "batch": 1,
+      "prompt": 2048,
+      "eager_ms": 40.47865676879883,
+      "graph_ms": 22.89049530029297,
+      "tokens_per_s": 89469.44891899251,
+      "speedup_vs_bf16": 0.9713250628353203,
+      "eager_speedup_vs_bf16": 0.5931200575390032,
+      "perplexity": 21.589853425894084
+    },
+    {
+      "model": "HuggingFaceTB/SmolLM2-135M",
+      "weights": "int4-g64",
+      "backend": "fused Triton",
+      "batch": 8,
+      "prompt": 512,
+      "eager_ms": 40.61695861816406,
+      "graph_ms": 33.997825622558594,
+      "tokens_per_s": 120478.29309654965,
+      "speedup_vs_bf16": 0.9805728605529017,
+      "eager_speedup_vs_bf16": 0.8686988447608132,
+      "perplexity": 21.589853425894084
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+
+INT4 group 64 on NVIDIA GeForce RTX 3090: CUDA graph replay, median microseconds
+| layer                             |  rows |  fp16 | fused gemm | dequant + cuBLAS | dequant only | best vs fp16 | best             |
+|-----------------------------------|------:|------:|-----------:|-----------------:|-------------:|--------------|------------------|
+| qwen2.5-1.5b attn (1536x1536)     |    16 | 27.60 |      47.10 |            30.72 |        26.62 | 0.90x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     |    32 | 30.19 |      47.10 |            32.77 |        26.62 | 0.92x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     |    64 | 30.72 |      52.26 |            37.89 |        26.62 | 0.81x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     |   128 | 32.77 |      58.37 |            39.94 |        26.62 | 0.82x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     |   256 | 46.08 |      87.04 |            53.25 |        26.62 | 0.87x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     |   512 | 59.39 |      123.9 |            67.58 |        26.62 | 0.88x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     | 1,024 | 115.7 |      262.1 |            124.9 |        26.62 | 0.93x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     | 2,048 | 155.6 |      415.7 |            163.8 |        26.62 | 0.95x        | dequant + cuBLAS |
+| qwen2.5-1.5b attn (1536x1536)     | 4,096 | 348.2 |      699.4 |            370.7 |        26.62 | 0.94x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   |    16 | 55.33 |      74.75 |            103.4 |        62.46 | 0.74x        | fused gemm       |
+| qwen2.5-1.5b mlp up (8960x1536)   |    32 | 55.25 |      80.90 |            102.4 |        62.46 | 0.68x        | fused gemm       |
+| qwen2.5-1.5b mlp up (8960x1536)   |    64 | 56.32 |      124.9 |            102.4 |        62.46 | 0.55x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   |   128 | 73.73 |      159.7 |            120.8 |        62.46 | 0.61x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   |   256 | 128.0 |      290.8 |            174.1 |        62.46 | 0.74x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   |   512 | 239.1 |      556.0 |            285.7 |        62.46 | 0.84x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   | 1,024 | 448.4 |      952.3 |            496.6 |        62.46 | 0.90x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   | 2,048 | 881.6 |      1,878 |            962.5 |        62.46 | 0.92x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp up (8960x1536)   | 4,096 | 1,714 |      3,892 |            1,846 |        62.46 | 0.93x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |    16 | 61.44 |      307.2 |            105.5 |        61.44 | 0.58x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |    32 | 61.44 |      306.2 |            104.4 |        61.44 | 0.59x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |    64 | 56.32 |      313.3 |            104.4 |        61.44 | 0.54x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |   128 | 97.28 |      364.0 |            141.3 |        61.44 | 0.69x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |   256 | 173.1 |      671.7 |            218.1 |        61.44 | 0.79x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) |   512 | 238.6 |      828.4 |            290.8 |        61.44 | 0.82x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) | 1,024 | 499.7 |      1,545 |            549.9 |        61.44 | 0.91x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) | 2,048 | 825.3 |      2,413 |            944.1 |        61.44 | 0.87x        | dequant + cuBLAS |
+| qwen2.5-1.5b mlp down (1536x8960) | 4,096 | 1,907 |      4,105 |            1,972 |        61.44 | 0.97x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |    16 | 61.44 |      150.5 |            117.8 |        71.68 | 0.52x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |    32 | 62.46 |      154.6 |            118.8 |        71.68 | 0.53x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |    64 | 68.61 |      170.0 |            122.9 |        71.68 | 0.56x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |   128 | 90.11 |      281.6 |            144.4 |        71.68 | 0.62x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |   256 | 170.0 |      378.9 |            224.3 |        71.68 | 0.76x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               |   512 | 302.1 |      725.0 |            359.4 |        71.68 | 0.84x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               | 1,024 | 591.9 |      1,406 |            670.7 |        71.68 | 0.88x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               | 2,048 | 1,185 |      2,476 |            1,271 |        71.68 | 0.93x        | dequant + cuBLAS |
+| 7b attn (4096x4096)               | 4,096 | 2,436 |      4,762 |            2,237 |        71.68 | 1.09x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            |    16 | 142.3 |      287.7 |            289.8 |        162.8 | 0.49x        | fused gemm       |
+| 7b mlp up (11008x4096)            |    32 | 194.6 |      313.3 |            337.9 |        162.8 | 0.62x        | fused gemm       |
+| 7b mlp up (11008x4096)            |    64 | 165.9 |      454.7 |            314.4 |        162.8 | 0.53x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            |   128 | 228.3 |      728.1 |            375.8 |        162.8 | 0.61x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            |   256 | 390.1 |      1,071 |            528.4 |        162.8 | 0.74x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            |   512 | 878.6 |      1,768 |            1,075 |        162.8 | 0.82x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            | 1,024 | 1,504 |      3,255 |            1,770 |        162.8 | 0.85x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            | 2,048 | 2,972 |      6,193 |            3,197 |        162.8 | 0.93x        | dequant + cuBLAS |
+| 7b mlp up (11008x4096)            | 4,096 | 5,743 |     12,583 |            5,888 |        162.8 | 0.98x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |    16 | 129.0 |      398.3 |            282.6 |        171.0 | 0.46x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |    32 | 129.0 |      412.7 |            282.6 |        171.0 | 0.46x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |    64 | 138.2 |      470.0 |            289.8 |        171.0 | 0.48x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |   128 | 208.9 |      866.3 |            375.8 |        171.0 | 0.56x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |   256 | 445.4 |      1,070 |            596.0 |        171.0 | 0.75x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          |   512 | 786.4 |      2,023 |            949.2 |        171.0 | 0.83x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          | 1,024 | 1,820 |      4,009 |            2,008 |        171.0 | 0.91x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          | 2,048 | 3,077 |      7,179 |            3,439 |        171.0 | 0.89x        | dequant + cuBLAS |
+| 7b mlp down (4096x11008)          | 4,096 | 5,820 |     13,438 |            5,725 |        171.0 | 1.02x        | dequant + cuBLAS |
