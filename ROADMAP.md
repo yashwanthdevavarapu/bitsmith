@@ -25,8 +25,8 @@ Since v0.2.0 (unreleased, see the [changelog](CHANGELOG.md)):
 
 Known gaps, from the [README](README.md#limitations): the fused INT4 kernel reaches about
 25% of peak bandwidth, the quantized KV cache saves memory but not time, the INT8
-backend only beats bf16 end to end on the 1.5B model, and INT4 prefill runs at about half
-of bf16 speed.
+backend only beats bf16 end to end on the 1.5B model, and INT4 prefill reaches bf16 speed
+at best.
 
 ## v0.3: Speed
 
@@ -40,7 +40,8 @@ Goal: make quantized models faster than bf16 end to end, not just per layer.
 | ~~Real INT8 W8A8 matmul on tensor cores with `torch._int_mm`~~ done, with fused Triton quantize and rescale, see ADR 0017 | `performance`, `area: kernels` |
 | ~~End to end W8A8 speed~~ done, prefill 1.19x to 1.39x faster than bf16 on Qwen2.5-1.5B, see ADR 0019 | `performance`, `area: benchmarks` |
 | Fuse per-token activation quantization into the previous layer's output (no extra pass) | `performance`, `area: kernels`, `help wanted` |
-| Tune the INT4 prefill GEMM (currently about 2x slower than cuBLAS) | `performance`, `area: kernels` |
+| ~~Tune the INT4 prefill GEMM~~ done, unpack once and call cuBLAS: 1.6x to 3.1x faster from 256 rows, see ADR 0020 | `performance`, `area: kernels` |
+| A fused INT4 GEMM that beats unpack + cuBLAS between 16 and 64 rows (larger K tiles, weight reuse) | `performance`, `area: kernels`, `help wanted` |
 | ~~Faster GPTQ column loop~~ done, 3.5x to 15x per layer, see ADR 0013 | `performance`, `area: calibration` |
 
 ## v0.4: Formats

@@ -5,7 +5,7 @@
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-3776ab)
 ![pytorch](https://img.shields.io/badge/pytorch-2.2%2B-ee4c2c)
 [![CI](https://github.com/yashwanthdevavarapu/bitsmith/actions/workflows/ci.yml/badge.svg)](https://github.com/yashwanthdevavarapu/bitsmith/actions/workflows/ci.yml)
-![tests](https://img.shields.io/badge/tests-346%20CPU%20%2B%20109%20GPU-1baf7a)
+![tests](https://img.shields.io/badge/tests-347%20CPU%20%2B%20124%20GPU-1baf7a)
 ![coverage](https://img.shields.io/badge/coverage-97%25-1baf7a)
 ![types](https://img.shields.io/badge/mypy-clean-2a78d6)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -28,8 +28,8 @@ real models, and reports what each technique actually costs:
   than bf16 on Qwen2.5-1.5B), and CUDA graph decoding (1.9x to 9x faster than `generate`)
 - **Evaluation**: full WikiText-2 perplexity on three models, kernel timing against the
   bandwidth roofline, and a Pareto sweep
-- **Engineering**: 346 CPU tests at 97% coverage plus 109 GPU tests, CI on Linux, Windows and
-  macOS, and 19 architecture decision records
+- **Engineering**: 347 CPU tests at 97% coverage plus 124 GPU tests, CI on Linux, Windows and
+  macOS, and 20 architecture decision records
 
 The core library depends only on `torch` and `numpy`.
 
@@ -326,8 +326,33 @@ WikiText-2 test tokens from the same backend
    1 x 2048 and 1.36x at 8 x 512.
 4. **The real and simulated backends agree** on perplexity (10.200 and 10.216), so the
    accuracy tables above hold for the fast path.
-5. **INT4 is for decoding, not prefill.** The fused INT4 GEMM runs at about half of cuBLAS
-   speed on many rows; it pays off at batch 1 decode, where weight bandwidth is the limit.
+5. **INT4 is for decoding, not prefill.** The fused INT4 GEMM ran at about half of cuBLAS
+   speed on many rows; the next section fixes most of that, but INT4 cannot beat bf16 on
+   prefill. It pays off at batch 1 decode, where weight bandwidth is the limit.
+
+### Speed: INT4 prefill, unpack once and call cuBLAS
+
+With many rows the fused INT4 GEMM is compute bound and dequantizes the same weights for
+every block of rows. For those shapes `int4_linear` now unpacks the weight once with a
+Triton kernel and calls cuBLAS (ADR 0020). The switch point comes from measuring six layer
+shapes at 16 to 4096 rows ([`results/int4_prefill_rtx3090_shared.txt`](results/int4_prefill_rtx3090_shared.txt)):
+
+| Rows | Fused GEMM vs fp16 | Unpack + cuBLAS vs fp16 |
+|-----:|-------------------:|------------------------:|
+| 64 | 0.18x to 0.59x | 0.48x to 0.81x |
+| 512 | 0.29x to 0.50x | 0.82x to 0.88x |
+| 2048 | 0.34x to 0.48x | 0.87x to 0.95x |
+| 4096 | 0.43x to 0.51x | 0.93x to 1.09x |
+
+![INT4 layers: fused GEMM against unpack + cuBLAS](docs/assets/int4_prefill_rtx3090.png)
+
+From 256 rows on, INT4 layers are 1.6x to 3.1x faster than before. In a whole model,
+SmolLM2-135M prefill with INT4 weights went from 0.43x to 0.70x of bf16 to 0.88x to 0.98x
+(CUDA graph replay,
+[`results/prefill_int4dequant_smollm2_135m_shared.txt`](results/prefill_int4dequant_smollm2_135m_shared.txt)).
+Below 64 rows the fused GEMM still wins on wide layers, so the rule is per shape: unpack
+when there are 64 rows or more, or when the layer is not wider than it is long. Decoding
+keeps the fused GEMV.
 
 ![bitsmith hf on Qwen2.5-1.5B](docs/assets/terminal_hf.png)
 
@@ -520,8 +545,8 @@ tests/
   gpu/         CUDA parity and fused kernel tests (skipped without a GPU)
 examples/      01 quickstart, 02 calibration, 03 roofline, 04 real model
 scripts/       reproduce.py, make_figures.py, bench_kernels.py, bench_int8.py, bench_decode.py,
-               bench_prefill.py, bench_gptq.py, kv_channel_stats.py
-docs/          guide/ (math, layouts, kernel), adr/ (19 decision records), assets/ (figures)
+               bench_prefill.py, bench_int4_prefill.py, bench_gptq.py, kv_channel_stats.py
+docs/          guide/ (math, layouts, kernel), adr/ (20 decision records), assets/ (figures)
 results/       every committed number, as JSON and text
 .github/       CI, benchmark and release workflows, issue and PR templates
 ```
@@ -532,7 +557,7 @@ results/       every committed number, as JSON and text
 make check       # ruff lint + format check, mypy, pytest
 make test-fast   # skip the slow end to end tests
 make coverage    # HTML coverage report
-pytest tests/gpu # on a CUDA machine: 109 GPU tests
+pytest tests/gpu # on a CUDA machine: 124 GPU tests
 ```
 
 What the tests pin down, beyond "it runs":
@@ -584,6 +609,7 @@ Recorded in [`docs/adr/`](docs/adr/README.md):
 | [0017](docs/adr/0017-int8-w8a8-backend.md) | real W8A8 on `torch._int_mm`, with the same activation codes as the simulated path |
 | [0018](docs/adr/0018-smoothquant-per-layer-search.md) | SmoothQuant picks its strength per layer on calibration data, including no smoothing |
 | [0019](docs/adr/0019-end-to-end-w8a8-prefill.md) | W8A8 measured end to end on prefill (eager and CUDA graph), input scale fused into quantization |
+| [0020](docs/adr/0020-int4-prefill-dequantize-then-cublas.md) | INT4 with many rows unpacks the weight once and calls cuBLAS, switch point measured per shape |
 
 ## Reproducing everything
 
@@ -604,7 +630,8 @@ numbers are deterministic for a given PyTorch version; timings depend on the mac
 - The INT8 backend is slower than fp16 on small layers at 1 to 16 rows; activations are
   quantized in a separate kernel rather than inside the previous layer. End to end it only
   pays off on larger models: prefill is at or below bf16 speed on the 135M and 0.5B models.
-- The fused INT4 kernel is a decode kernel: INT4 prefill runs at 0.4x to 0.7x of bf16.
+- INT4 prefill reaches 0.9x to 1.0x of bf16 by unpacking the weight once, never more: it
+  does the bf16 GEMM plus the unpacking.
 - Speed results were measured on a shared RTX 3090 under load from other jobs.
 - The quantized KV cache saves memory, not time: attention reads a dequantized copy.
 - Results cover models up to 1.5B parameters.

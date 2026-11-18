@@ -330,6 +330,19 @@ peak bandwidth; closing the rest of the gap needs techniques beyond this project
 (weight pre-shuffling for wide vector loads, asynchronous copies, and tuned tile shapes,
 as in Marlin).
 
+With many rows the matmul is compute bound, and fusing stops paying: the fused GEMM's K
+tile is one group, and every block of rows dequantizes the same weights again. There
+`int4_linear` unpacks the weight once (`int4_dequantize`, the same `_dequant_tile` code, so
+the same values) and calls cuBLAS:
+
+```
+rows <= 4                       fused GEMV                 decoding, bandwidth bound
+rows >= 64  or  K >= N          unpack + cuBLAS            prefill, compute bound
+otherwise                       fused tensor core GEMM     wide layers, few rows
+```
+
+The thresholds come from `scripts/bench_int4_prefill.py` (ADR 0020).
+
 ### Real INT8 W8A8
 
 `src/bitsmith/kernels/int8_mm.py`
