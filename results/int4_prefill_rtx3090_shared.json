@@ -1,0 +1,439 @@
+{
+  "gpu": "NVIDIA GeForce RTX 3090",
+  "torch": "2.5.1+cu121",
+  "group_size": 64,
+  "records": [
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 16,
+      "fp16_us": 27.59999968111515,
+      "fused_gemm_us": 47.10400104522705,
+      "dequant_cublas_us": 30.719999223947525,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 32,
+      "fp16_us": 30.1919998601079,
+      "fused_gemm_us": 47.10400104522705,
+      "dequant_cublas_us": 32.76799991726875,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 64,
+      "fp16_us": 30.719999223947525,
+      "fused_gemm_us": 52.25599929690361,
+      "dequant_cublas_us": 37.88800165057182,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 128,
+      "fp16_us": 32.76799991726875,
+      "fused_gemm_us": 58.36800113320351,
+      "dequant_cublas_us": 39.93599861860275,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 256,
+      "fp16_us": 46.08000069856644,
+      "fused_gemm_us": 87.0399996638298,
+      "dequant_cublas_us": 53.247999399900436,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 512,
+      "fp16_us": 59.39200147986412,
+      "fused_gemm_us": 123.90399724245071,
+      "dequant_cublas_us": 67.58400052785873,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 1024,
+      "fp16_us": 115.7120019197464,
+      "fused_gemm_us": 262.14399933815,
+      "dequant_cublas_us": 124.92799758911133,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 2048,
+      "fp16_us": 155.64799308776855,
+      "fused_gemm_us": 415.74400663375854,
+      "dequant_cublas_us": 163.83999586105347,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b attn (1536x1536)",
+      "rows": 4096,
+      "fp16_us": 348.1599986553192,
+      "fused_gemm_us": 699.3920207023621,
+      "dequant_cublas_us": 370.6879913806915,
+      "dequant_only_us": 26.623999699950218
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 16,
+      "fp16_us": 55.32800033688545,
+      "fused_gemm_us": 74.75200295448303,
+      "dequant_cublas_us": 103.42399775981903,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 32,
+      "fp16_us": 55.24799972772598,
+      "fused_gemm_us": 80.89599758386612,
+      "dequant_cublas_us": 102.39999741315842,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 64,
+      "fp16_us": 56.32000043988228,
+      "fused_gemm_us": 124.92799758911133,
+      "dequant_cublas_us": 102.39999741315842,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 128,
+      "fp16_us": 73.72800260782242,
+      "fused_gemm_us": 159.743994474411,
+      "dequant_cublas_us": 120.83200365304947,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 256,
+      "fp16_us": 127.96799838542938,
+      "fused_gemm_us": 290.8160090446472,
+      "dequant_cublas_us": 174.0799993276596,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 512,
+      "fp16_us": 239.07200247049332,
+      "fused_gemm_us": 556.0320019721985,
+      "dequant_cublas_us": 285.69599986076355,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 1024,
+      "fp16_us": 448.4480023384094,
+      "fused_gemm_us": 952.3199796676636,
+      "dequant_cublas_us": 496.63999676704407,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 2048,
+      "fp16_us": 881.6479742527008,
+      "fused_gemm_us": 1878.0159950256348,
+      "dequant_cublas_us": 962.5439941883087,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp up (8960x1536)",
+      "rows": 4096,
+      "fp16_us": 1714.176058769226,
+      "fused_gemm_us": 3892.224073410034,
+      "dequant_cublas_us": 1846.2719917297363,
+      "dequant_only_us": 62.463998794555664
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 16,
+      "fp16_us": 61.43999844789505,
+      "fused_gemm_us": 307.20001459121704,
+      "dequant_cublas_us": 105.47199845314026,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 32,
+      "fp16_us": 61.43999844789505,
+      "fused_gemm_us": 306.2080144882202,
+      "dequant_cublas_us": 104.44799810647964,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 64,
+      "fp16_us": 56.32000043988228,
+      "fused_gemm_us": 313.34400177001953,
+      "dequant_cublas_us": 104.44799810647964,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 128,
+      "fp16_us": 97.28000313043594,
+      "fused_gemm_us": 364.03200030326843,
+      "dequant_cublas_us": 141.31200313568115,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 256,
+      "fp16_us": 173.0560064315796,
+      "fused_gemm_us": 671.7439889907837,
+      "dequant_cublas_us": 218.1120067834854,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 512,
+      "fp16_us": 238.5919988155365,
+      "fused_gemm_us": 828.4159898757935,
+      "dequant_cublas_us": 290.8160090446472,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 1024,
+      "fp16_us": 499.7119903564453,
+      "fused_gemm_us": 1545.2159643173218,
+      "dequant_cublas_us": 549.888014793396,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 2048,
+      "fp16_us": 825.3440260887146,
+      "fused_gemm_us": 2412.544012069702,
+      "dequant_cublas_us": 944.1279768943787,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "qwen2.5-1.5b mlp down (1536x8960)",
+      "rows": 4096,
+      "fp16_us": 1906.6880345344543,
+      "fused_gemm_us": 4105.216026306152,
+      "dequant_cublas_us": 1972.2239971160889,
+      "dequant_only_us": 61.43999844789505
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 16,
+      "fp16_us": 61.43999844789505,
+      "fused_gemm_us": 150.52799880504608,
+      "dequant_cublas_us": 117.76000261306763,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 32,
+      "fp16_us": 62.463998794555664,
+      "fused_gemm_us": 154.62400019168854,
+      "dequant_cublas_us": 118.78400295972824,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 64,
+      "fp16_us": 68.60800087451935,
+      "fused_gemm_us": 169.98399794101715,
+      "dequant_cublas_us": 122.8799968957901,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 128,
+      "fp16_us": 90.11200070381165,
+      "fused_gemm_us": 281.5999984741211,
+      "dequant_cublas_us": 144.3839967250824,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 256,
+      "fp16_us": 169.98399794101715,
+      "fused_gemm_us": 378.87999415397644,
+      "dequant_cublas_us": 224.2559939622879,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 512,
+      "fp16_us": 302.0800054073334,
+      "fused_gemm_us": 724.9919772148132,
+      "dequant_cublas_us": 359.42399501800537,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 1024,
+      "fp16_us": 591.871976852417,
+      "fused_gemm_us": 1405.951976776123,
+      "dequant_cublas_us": 670.7199811935425,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 2048,
+      "fp16_us": 1184.7679615020752,
+      "fused_gemm_us": 2476.032018661499,
+      "dequant_cublas_us": 1270.7840204238892,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b attn (4096x4096)",
+      "rows": 4096,
+      "fp16_us": 2436.095952987671,
+      "fused_gemm_us": 4761.600017547607,
+      "dequant_cublas_us": 2237.4401092529297,
+      "dequant_only_us": 71.68000191450119
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 16,
+      "fp16_us": 142.33599603176117,
+      "fused_gemm_us": 287.7439856529236,
+      "dequant_cublas_us": 289.792001247406,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 32,
+      "fp16_us": 194.5600062608719,
+      "fused_gemm_us": 313.34400177001953,
+      "dequant_cublas_us": 337.92001008987427,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 64,
+      "fp16_us": 165.8879965543747,
+      "fused_gemm_us": 454.6560049057007,
+      "dequant_cublas_us": 314.36800956726074,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 128,
+      "fp16_us": 228.2719984650612,
+      "fused_gemm_us": 728.0640006065369,
+      "dequant_cublas_us": 375.8080005645752,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 256,
+      "fp16_us": 390.1439905166626,
+      "fused_gemm_us": 1071.1040496826172,
+      "dequant_cublas_us": 528.3839702606201,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 512,
+      "fp16_us": 878.5920143127441,
+      "fused_gemm_us": 1768.447995185852,
+      "dequant_cublas_us": 1075.1999616622925,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 1024,
+      "fp16_us": 1503.7439465522766,
+      "fused_gemm_us": 3255.295991897583,
+      "dequant_cublas_us": 1770.4960107803345,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 2048,
+      "fp16_us": 2971.6479778289795,
+      "fused_gemm_us": 6193.152189254761,
+      "dequant_cublas_us": 3196.928024291992,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp up (11008x4096)",
+      "rows": 4096,
+      "fp16_us": 5743.103981018066,
+      "fused_gemm_us": 12582.91244506836,
+      "dequant_cublas_us": 5888.000011444092,
+      "dequant_only_us": 162.81600296497345
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 16,
+      "fp16_us": 129.02399897575378,
+      "fused_gemm_us": 398.3359932899475,
+      "dequant_cublas_us": 282.6240062713623,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 32,
+      "fp16_us": 128.9920061826706,
+      "fused_gemm_us": 412.7040058374405,
+      "dequant_cublas_us": 282.6240062713623,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 64,
+      "fp16_us": 138.2399946451187,
+      "fused_gemm_us": 470.0160026550293,
+      "dequant_cublas_us": 289.7759974002838,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 128,
+      "fp16_us": 208.8959962129593,
+      "fused_gemm_us": 866.3039803504944,
+      "dequant_cublas_us": 375.8080005645752,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 256,
+      "fp16_us": 445.43999433517456,
+      "fused_gemm_us": 1070.080041885376,
+      "dequant_cublas_us": 595.9680080413818,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 512,
+      "fp16_us": 786.4320278167725,
+      "fused_gemm_us": 2023.4239101409912,
+      "dequant_cublas_us": 949.2480158805847,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 1024,
+      "fp16_us": 1819.648027420044,
+      "fused_gemm_us": 4009.455919265747,
+      "dequant_cublas_us": 2008.0640316009521,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 2048,
+      "fp16_us": 3077.1199464797974,
+      "fused_gemm_us": 7179.264068603516,
+      "dequant_cublas_us": 3438.591957092285,
+      "dequant_only_us": 171.00800573825836
+    },
+    {
+      "layer": "7b mlp down (4096x11008)",
+      "rows": 4096,
+      "fp16_us": 5820.41597366333,
+      "fused_gemm_us": 13437.952041625977,
+      "dequant_cublas_us": 5725.183963775635,
+      "dequant_only_us": 171.00800573825836
+    }
+  ]
+}
