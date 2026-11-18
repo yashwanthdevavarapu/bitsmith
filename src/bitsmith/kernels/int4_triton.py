@@ -14,13 +14,18 @@ Storage layout (same as ``Int4Codec``)::
 Inside a tile the two nibbles are split and re-interleaved with ``tl.join`` so the
 activations can be read contiguously.
 
-Two kernels:
+Three paths, chosen by the number of activation rows ``M``:
 
-* ``_gemv``  for a few rows of activations (token by token decoding). Each program owns a
-  block of output features and a slice of K (split-K), reduces in registers, and adds its
-  partial sum to an fp32 output with an atomic add. Large K tiles keep many bytes in
-  flight per program, which is what a bandwidth bound kernel needs.
-* ``_gemm``  for larger batches (prefill), with ``tl.dot`` on tensor cores.
+* ``_gemv``  for a few rows (token by token decoding). Each program owns a block of output
+  features and a slice of K (split-K), reduces in registers, and adds its partial sum to an
+  fp32 output with an atomic add. Large K tiles keep many bytes in flight per program,
+  which is what a bandwidth bound kernel needs.
+* ``_gemm``  for medium batches, with ``tl.dot`` on tensor cores.
+* ``_dequant`` + cuBLAS for many rows (prefill, ADR 0020). The GEMM is compute bound there,
+  and every block of rows in ``_gemm`` dequantizes the same weights again. Unpacking the
+  weight once to the activation dtype (about 2.5 bytes moved per weight) and calling cuBLAS
+  costs a few percent over a 16-bit GEMM and reaches cuBLAS speed. The weights are the
+  same values the fused kernels compute, so only the summation order changes.
 """
 
 from __future__ import annotations
@@ -200,8 +205,91 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         y_ptrs = y_ptr + offs_m[:, None] * stride_ym + offs_n[None, :]
         tl.store(y_ptrs, acc.to(y_ptr.dtype.element_ty), mask=mask_m[:, None] & mask_n[None, :])
 
+    @triton.autotune(
+        configs=[
+            triton.Config({"BLOCK_N": bn, "BLOCK_K": bk}, num_warps=w)
+            for bn, bk, w in (
+                (16, 128, 4),
+                (16, 256, 4),
+                (32, 128, 4),
+                (32, 256, 4),
+                (64, 128, 4),
+                (64, 256, 8),
+                (128, 128, 8),
+                (8, 512, 4),
+            )
+        ],
+        key=["N", "K", "GROUP"],
+    )
+    @triton.jit
+    def _dequant(
+        w_ptr,
+        s_ptr,
+        z_ptr,
+        out_ptr,
+        N,
+        K,
+        K_REAL,
+        stride_wn,
+        stride_sn,
+        stride_on,
+        GROUP: tl.constexpr,
+        BLOCK_N: tl.constexpr,
+        BLOCK_K: tl.constexpr,
+        SYMMETRIC: tl.constexpr,
+    ):
+        offs_n = tl.program_id(0) * BLOCK_N + tl.arange(0, BLOCK_N)
+        k0 = tl.program_id(1) * BLOCK_K
+        mask_n = offs_n < N
+        w = _dequant_tile(
+            w_ptr, s_ptr, z_ptr, offs_n, mask_n, k0, K, stride_wn, stride_sn, GROUP, BLOCK_N, BLOCK_K, SYMMETRIC
+        )
+        kk = k0 + tl.arange(0, BLOCK_K)
+        mask = mask_n[:, None] & (kk < K_REAL)[None, :]
+        tl.store(out_ptr + offs_n[:, None] * stride_on + kk[None, :], w.to(out_ptr.dtype.element_ty), mask=mask)
+
 
 GEMV_MAX_ROWS = 4
+# From scripts/bench_int4_prefill.py on an RTX 3090: dequantize + cuBLAS beats the fused GEMM
+# on every measured shape from 64 rows on, and at any row count when the layer is not wider
+# than it is long (K >= N), where the fused GEMM's short K tiles leave it 1.2x to 2.9x slower.
+DEQUANT_MIN_ROWS = 64
+
+
+def use_dequant(rows: int, in_features: int, out_features: int) -> bool:
+    """Whether ``int4_linear(path="auto")`` unpacks the weight and calls cuBLAS."""
+    return rows > GEMV_MAX_ROWS and (rows >= DEQUANT_MIN_ROWS or in_features >= out_features)
+
+
+def int4_dequantize(
+    qweight: Tensor,
+    scale: Tensor,
+    zero: Tensor | None,
+    in_features: int,
+    group_size: int,
+    dtype: torch.dtype = torch.float16,
+) -> Tensor:
+    """Unpack packed INT4 weights to a dense ``(N, in_features)`` matrix in one kernel."""
+    if not triton_available():
+        raise RuntimeError("int4_dequantize needs Triton and a CUDA device")
+    n, k = qweight.shape[0], qweight.shape[1] * 2
+    out = torch.empty(n, in_features, device=qweight.device, dtype=dtype)
+    grid = lambda meta: (triton.cdiv(n, meta["BLOCK_N"]), triton.cdiv(k, meta["BLOCK_K"]))  # noqa: E731
+    _dequant[grid](
+        qweight,
+        scale,
+        zero if zero is not None else scale,
+        out,
+        n,
+        k,
+        in_features,
+        qweight.stride(0),
+        scale.stride(0),
+        out.stride(0),
+        GROUP=group_size,
+        SYMMETRIC=zero is None,
+    )
+    return out
 
 
 def int4_linear(
@@ -212,8 +300,16 @@ def int4_linear(
     in_features: int,
     group_size: int,
     bias: Tensor | None = None,
+    *,
+    path: str = "auto",
 ) -> Tensor:
-    """``x @ W^T + bias`` with ``W`` stored as packed INT4, computed by a fused kernel."""
+    """``x @ W^T + bias`` with ``W`` stored as packed INT4.
+
+    ``path="auto"``: up to ``GEMV_MAX_ROWS`` rows use the fused GEMV; above that, the
+    shapes picked by :func:`use_dequant` unpack the weight once and call cuBLAS, and the
+    rest use the fused tensor core GEMM. ``"fused"`` and ``"dequant"`` force one of the two
+    (for benchmarks and tests).
+    """
     if not triton_available():
         raise RuntimeError("int4_linear needs Triton and a CUDA device")
     if x.dtype not in (torch.float16, torch.bfloat16):
@@ -226,7 +322,12 @@ def int4_linear(
     k = qweight.shape[1] * 2  # padded width, a multiple of group_size
     symmetric = zero is None
     z = zero if zero is not None else scale  # dummy pointer, never read when symmetric
-    if m <= GEMV_MAX_ROWS:
+    if path not in ("auto", "fused", "dequant"):
+        raise ValueError(f"path must be auto, fused or dequant, not {path!r}")
+    if path == "dequant" or (path == "auto" and use_dequant(m, in_features, n)):
+        w = int4_dequantize(qweight, scale, zero, in_features, group_size, x.dtype)
+        return torch.nn.functional.linear(x, w, bias.to(x.dtype) if bias is not None else None)
+    if m <= GEMV_MAX_ROWS and path == "auto":
         y32 = torch.zeros(m, n, device=x.device, dtype=torch.float32)
         grid = lambda meta: (m, triton.cdiv(n, meta["BLOCK_N"]), meta["SPLIT_K"])  # noqa: E731
         _gemv[grid](
