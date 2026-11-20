@@ -37,8 +37,17 @@ def wikitext2_tokens(tokenizer: Any, split: str = "test", max_tokens: int | None
     text = "\n\n".join(ds["text"])
     if max_tokens:  # avoid tokenizing the whole train split when only a slice is needed
         text = text[: max_tokens * 8]
-    ids = torch.tensor(tokenizer(text)["input_ids"], dtype=torch.long)
-    return ids[:max_tokens] if max_tokens else ids
+    prev_max_len = getattr(tokenizer, "model_max_length", None)
+    raise_max_len = False
+    raise_max_len = isinstance(prev_max_len, int) and prev_max_len < len(text) + 1
+    if raise_max_len:
+        tokenizer.model_max_length = len(text) + 1
+    try:
+        ids = torch.tensor(tokenizer(text)["input_ids"], dtype=torch.long)
+        finally:
+            if raise_max_len:
+                tokenizer.model_max_length = prev_max_len
+            return ids[:max_tokens] if max_tokens else ids
 
 
 def calibration_batches(tokens: Tensor, n: int, seq_len: int, seed: int = 0) -> list[Tensor]:
