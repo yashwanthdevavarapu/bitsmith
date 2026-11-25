@@ -20,7 +20,7 @@ Since v0.2.0 (unreleased, see the [changelog](CHANGELOG.md)):
 - NF4, MXFP4, MXINT8, INT3 and INT2, with GPTQ and AWQ on all of them
 - A quantized KV cache (per-channel keys), alone and combined with quantized weights
 - GPTQ 3.5x to 15x faster, CUDA graph decoding, a real INT8 W8A8 backend
-- W8A8 prefill 1.19x to 1.39x faster than bf16 on Qwen2.5-1.5B, the first end to end speedup
+- W8A8 prefill 1.1x to 1.4x faster than bf16 on Qwen2.5-1.5B, the first end to end speedup
 - GPT-2 support (`Conv1D`) and a SmoothQuant that picks its strength per layer
 
 Known gaps, from the [README](README.md#limitations): the fused INT4 kernel reaches about
@@ -37,8 +37,9 @@ Goal: make quantized models faster than bf16 end to end, not just per layer.
 | ~~CUDA graph capture for the decode step~~ done, `GraphDecoder`, see ADR 0016 | `performance`, `area: kernels` |
 | CUDA graph decoding with a quantized KV cache (a static, preallocated packed cache) | `performance`, `area: kernels`, `help wanted` |
 | Faster INT4 GEMV: wide vector loads and weight pre-shuffling | `performance`, `area: kernels` |
+| Tensor core GEMV for 2 to 16 rows (batched decoding is still below fp16) | `performance`, `area: kernels`, `help wanted` |
 | ~~Real INT8 W8A8 matmul on tensor cores with `torch._int_mm`~~ done, with fused Triton quantize and rescale, see ADR 0017 | `performance`, `area: kernels` |
-| ~~End to end W8A8 speed~~ done, prefill 1.19x to 1.39x faster than bf16 on Qwen2.5-1.5B, see ADR 0019 | `performance`, `area: benchmarks` |
+| ~~End to end W8A8 speed~~ done, prefill 1.1x to 1.4x faster than bf16 on Qwen2.5-1.5B in two runs, see ADR 0019 | `performance`, `area: benchmarks` |
 | Fuse per-token activation quantization into the previous layer's output (no extra pass) | `performance`, `area: kernels`, `help wanted` |
 | ~~Tune the INT4 prefill GEMM~~ done, unpack once and call cuBLAS: 1.6x to 3.1x faster from 256 rows, see ADR 0020 | `performance`, `area: kernels` |
 | A fused INT4 GEMM that beats unpack + cuBLAS between 16 and 64 rows (larger K tiles, weight reuse) | `performance`, `area: kernels`, `help wanted` |
@@ -55,7 +56,8 @@ Goal: cover the formats people actually ship.
 | ~~GPTQ for NF4 and MX~~ done, see ADR 0012 | `area: calibration` |
 | Fused Triton kernel for NF4 and MXFP4 (table lookup in registers) | `area: kernels`, `help wanted` |
 | ~~INT3 and INT2 group codecs with packing~~ done, with GPTQ, see ADR 0014 | `area: formats` |
-| Fused Triton GEMV for INT3 and INT2 | `area: kernels`, `help wanted` |
+| ~~Fused Triton GEMV for INT3 and INT2~~ done, INT2 up to 2.1x fp16 at batch 1, see ADR 0021 | `area: kernels` |
+| INT3 as a 2-bit plane plus a 1-bit plane, so no code straddles a byte (INT3 is now slower than INT4) | `performance`, `area: kernels`, `help wanted` |
 | ~~KV-cache quantization~~ done, per-channel keys and per-token values, see ADR 0015 | `area: formats` |
 | Fused attention that reads the packed KV cache | `performance`, `area: kernels`, `help wanted` |
 | ~~Results for weight and KV-cache quantization combined~~ done, `bitsmith kv --weights`, see the README | `area: benchmarks` |

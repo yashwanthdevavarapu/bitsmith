@@ -321,8 +321,27 @@ for each tile of output features n and slice of input features k:
     q = interleave(lo, hi)                               # tl.join, back to column order
     w = (q - zero[group]) * scale[group]                 # dequantize in registers
     acc += sum(w * x[k], axis=1)                         # GEMV; tl.dot for GEMM
-atomic add acc into y                                    # split-K partial sums
+store acc in slot k of a partial buffer                 # split-K
+y = cast(((slot0 + slot1) + slot2) + slot3)              # fixed order, one kernel
 ```
+
+The GEMV serves up to 4 rows: one program dequantizes its weight tile once and multiplies
+it by every row. Each K slice writes its partial sums to its own slot and the slots are
+added in order afterwards, so the result is the same bits on every call (fp32 atomics
+added them in whatever order the programs finished; ADR 0021).
+
+INT3 and INT2 use the same kernels with a different tile loader:
+
+```
+INT2   byte -> 4 fields (b >> 0, 2, 4, 6) & 3     join(join(c0, c2), join(c1, c3))
+INT3   3 bytes -> 24-bit word -> 8 fields of 3    join(join(join(c0, c4), join(c2, c6)),
+                                                       join(join(c1, c5), join(c3, c7)))
+```
+
+Joining fields half a word apart first, then a quarter apart, puts the codes back in
+column order after the reshape. INT2 reads half the bytes of INT4 and is the fastest
+decode format (up to 2.09x fp16 on 7B-sized layers); INT3 reads 25% fewer bytes than INT4
+but is slower, because the codes straddle bytes and unpacking, not memory, is the limit.
 
 Measured on an RTX 3090 at batch 1, the kernel runs at 0.94x to 1.33x the speed of fp16
 cuBLAS and 5x to 24x faster than the reference path (see the README). It reaches about 25% of

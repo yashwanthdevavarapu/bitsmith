@@ -10,8 +10,9 @@ Every file here is produced by a script; nothing is edited by hand.
 | `int8_rtx3090_shared.*` | `python scripts/bench_int8.py` |
 | `decode_rtx3090_shared.*` | `python scripts/bench_decode.py` |
 | `prefill_rtx3090_shared.*` | `python scripts/bench_prefill.py`, one process per model, then `--merge` |
-| `prefill_int4dequant_smollm2_135m_shared.*` | the same for SmolLM2-135M, after the INT4 unpack + cuBLAS path (ADR 0020) |
 | `int4_prefill_rtx3090_shared.*` | `python scripts/bench_int4_prefill.py` |
+| `lowbit_kernels_rtx3090_shared.*` | `python scripts/bench_lowbit.py` |
+| `decode_lowbit_rtx3090_shared.*` | `python scripts/bench_decode.py --models HuggingFaceTB/SmolLM2-135M Qwen/Qwen2.5-0.5B --schemes int4 int3 int2 --no-reference` |
 | `tiny_sweep.*` | `bitsmith sweep` |
 | `cli_sqnr.txt` | `bitsmith sqnr --shape 1024x1024 --outliers 8` |
 | `cli_roofline.txt` | `bitsmith roofline --params 0.5e9` |
