@@ -1,11 +1,11 @@
 """End-to-end greedy decode speed: Hugging Face ``generate`` against CUDA graph replay.
 
 For each model: bf16 weights, and INT4 (group 64) weights on the reference runtime and on
-the fused Triton kernel. Each is timed through ``model.generate`` (dynamic cache, one
-launch per kernel) and through :class:`bitsmith.decode.GraphDecoder` (static cache, the
-decode step replayed as one CUDA graph). Batch 1, 64-token prompt, 128 new tokens; the
-median of 5 runs after a warm-up. INT4 here is round to nearest: calibration changes the
-codes, not the speed.
+the fused Triton kernel; ``--schemes int4 int3 int2`` adds the other low-bit formats. Each
+is timed through ``model.generate`` (dynamic cache, one launch per kernel) and through
+:class:`bitsmith.decode.GraphDecoder` (static cache, the decode step replayed as one CUDA
+graph). Batch 1, 64-token prompt, 128 new tokens; the median of 5 runs after a warm-up.
+The weights are round to nearest: calibration changes the codes, not the speed.
 
     python scripts/bench_decode.py --json results/decode_rtx3090.json > results/decode_rtx3090.txt
 """
@@ -59,6 +59,10 @@ def measure(model: torch.nn.Module, prompt: torch.Tensor) -> tuple[float, float,
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="*", default=MODELS)
+    parser.add_argument(
+        "--schemes", nargs="*", default=["int4"], help="weight formats on the triton backend (int4, int3, int2)"
+    )
+    parser.add_argument("--no-reference", action="store_true", help="skip the slow reference runtime rows")
     parser.add_argument("--json", help="write results to this JSON file")
     args = parser.parse_args()
     transformers, _ = _require_hf()
@@ -66,16 +70,26 @@ def main() -> None:
     for model_id in args.models:
         tok = transformers.AutoTokenizer.from_pretrained(model_id)
         prompt = wikitext2_tokens(tok, "test", 4096)[1000 : 1000 + PROMPT].unsqueeze(0).cuda()
-        model = transformers.AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.bfloat16).cuda().eval()
-        model.generation_config.pad_token_id = tok.eos_token_id
+
+        def load(model_id: str = model_id, eos: int = tok.eos_token_id) -> torch.nn.Module:
+            m = transformers.AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.bfloat16).cuda().eval()
+            m.generation_config.pad_token_id = eos
+            return m  # type: ignore[no-any-return]
+
+        model = load()
         runs = [("bf16", "cuBLAS")]
         results = [measure(model, prompt)]
-        quantize_model(model, scheme="int4", group_size=64)
-        runs.append(("int4-g64", "reference"))
-        results.append(measure(model, prompt))
-        if triton_available() and set_backend(model, "triton"):
-            runs.append(("int4-g64", "fused Triton"))
-            results.append(measure(model, prompt))
+        for scheme in args.schemes:  # each scheme starts again from the bf16 weights
+            del model
+            torch.cuda.empty_cache()
+            model = load()
+            quantize_model(model, scheme=scheme, group_size=64)
+            if not args.no_reference:
+                runs.append((f"{scheme}-g64", "reference"))
+                results.append(measure(model, prompt))
+            if triton_available() and set_backend(model, "triton"):
+                runs.append((f"{scheme}-g64", "fused Triton"))
+                results.append(measure(model, prompt))
         for (weights, backend), (hf, graph, prefix, exact) in zip(runs, results, strict=True):
             records.append(
                 {
