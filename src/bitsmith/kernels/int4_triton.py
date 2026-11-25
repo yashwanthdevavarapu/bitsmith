@@ -16,10 +16,15 @@ activations can be read contiguously.
 
 Three paths, chosen by the number of activation rows ``M``:
 
-* ``_gemv``  for a few rows (token by token decoding). Each program owns a block of output
-  features and a slice of K (split-K), reduces in registers, and adds its partial sum to an
-  fp32 output with an atomic add. Large K tiles keep many bytes in flight per program,
-  which is what a bandwidth bound kernel needs.
+* ``_gemv``  for a few rows (token by token decoding, up to ``GEMV_MAX_ROWS``). Each program
+  owns a block of output features and a slice of K (split-K), dequantizes that weight tile
+  once for all rows, and reduces in registers. Large K tiles keep many bytes in flight per
+  program, which is what a bandwidth bound kernel needs. Each K slice stores its partial
+  sums in its own slot of an fp32 buffer (the first slice also zeroes the unused slots),
+  and ``_sum_slots`` adds the slots in a fixed order and casts to the activation dtype.
+  With fp32 atomics the order of the additions depended on which program finished first,
+  and on a busy GPU the same input could round differently from one call to the next
+  (ADR 0021).
 * ``_gemm``  for medium batches, with ``tl.dot`` on tensor cores.
 * ``_dequant`` + cuBLAS for many rows (prefill, ADR 0020). The GEMM is compute bound there,
   and every block of rows in ``_gemm`` dequantizes the same weights again. Unpacking the
@@ -49,6 +54,38 @@ def triton_available() -> bool:
 if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
 
     @triton.jit
+    def _unpack_tile(
+        w_ptr, offs_n, mask_n, k0, K, stride_wn, BITS: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr
+    ):
+        """Unsigned codes of a (BLOCK_N, BLOCK_K) tile, in column order, as int32.
+
+        The packed bytes are read once per tile; each byte (INT4, INT2) or 3-byte word (INT3)
+        yields several codes, which ``tl.join`` interleaves back to column order. Joining
+        codes that are half a word apart, then a quarter, and so on, gives the natural order
+        after the reshape.
+        """
+        row = w_ptr + offs_n[:, None] * stride_wn
+        if BITS == 4:
+            cols = k0 // 2 + tl.arange(0, BLOCK_K // 2)
+            b = tl.load(row + cols[None, :], mask=mask_n[:, None] & (cols < K // 2)[None, :], other=0).to(tl.int32)
+            q = tl.join(b & 0xF, (b >> 4) & 0xF)
+        elif BITS == 2:
+            cols = k0 // 4 + tl.arange(0, BLOCK_K // 4)
+            b = tl.load(row + cols[None, :], mask=mask_n[:, None] & (cols < K // 4)[None, :], other=0).to(tl.int32)
+            q = tl.join(tl.join(b & 3, (b >> 4) & 3), tl.join((b >> 2) & 3, (b >> 6) & 3))
+        else:  # BITS == 3: eight codes in a little-endian 24-bit word of three bytes
+            words = k0 // 8 + tl.arange(0, BLOCK_K // 8)
+            mask = mask_n[:, None] & (words < K // 8)[None, :]
+            b0 = tl.load(row + 3 * words[None, :], mask=mask, other=0).to(tl.int32)
+            b1 = tl.load(row + 3 * words[None, :] + 1, mask=mask, other=0).to(tl.int32)
+            b2 = tl.load(row + 3 * words[None, :] + 2, mask=mask, other=0).to(tl.int32)
+            w = b0 | (b1 << 8) | (b2 << 16)
+            even = tl.join(tl.join(w & 7, (w >> 12) & 7), tl.join((w >> 6) & 7, (w >> 18) & 7))
+            odd = tl.join(tl.join((w >> 3) & 7, (w >> 15) & 7), tl.join((w >> 9) & 7, (w >> 21) & 7))
+            q = tl.join(even, odd)
+        return tl.reshape(q, (BLOCK_N, BLOCK_K))
+
+    @triton.jit
     def _dequant_tile(
         w_ptr,
         s_ptr,
@@ -63,18 +100,10 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         BLOCK_N: tl.constexpr,
         BLOCK_K: tl.constexpr,
         SYMMETRIC: tl.constexpr,
+        BITS: tl.constexpr,
     ):
         """Load a (BLOCK_N, BLOCK_K) tile of packed weights and return it dequantized in fp32."""
-        offs_h = tl.arange(0, BLOCK_K // 2)
-        cols_h = k0 // 2 + offs_h
-        packed = tl.load(
-            w_ptr + offs_n[:, None] * stride_wn + cols_h[None, :],
-            mask=mask_n[:, None] & (cols_h < K // 2)[None, :],
-            other=0,
-        ).to(tl.int32)
-        lo = packed & 0xF
-        hi = (packed >> 4) & 0xF
-        q = tl.reshape(tl.join(lo, hi), (BLOCK_N, BLOCK_K)).to(tl.float32)  # interleave columns
+        q = _unpack_tile(w_ptr, offs_n, mask_n, k0, K, stride_wn, BITS, BLOCK_N, BLOCK_K).to(tl.float32)
         if SYMMETRIC:
             q = tl.where(q >= 8, q - 16, q)
         G_TILE: tl.constexpr = BLOCK_K // GROUP
@@ -108,8 +137,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
                 (64, 256, 4, 8),
             )
         ],
-        key=["N", "K", "GROUP"],
-        reset_to_zero=["y_ptr"],
+        key=["M", "N", "K", "GROUP", "BITS"],
     )
     @triton.jit
     def _gemv(
@@ -118,34 +146,79 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         s_ptr,
         z_ptr,
         y_ptr,
+        M,
         N,
         K,
         K_REAL,
         stride_xm,
         stride_wn,
         stride_sn,
+        stride_yk,
         stride_ym,
+        BITS: tl.constexpr,  # positional, so the autotuner can key on it
         GROUP: tl.constexpr,
         BLOCK_N: tl.constexpr,
         BLOCK_K: tl.constexpr,
         SPLIT_K: tl.constexpr,
         SYMMETRIC: tl.constexpr,
+        BLOCK_M: tl.constexpr,
+        SLOTS: tl.constexpr,
     ):
-        m = tl.program_id(0)
-        pid_n = tl.program_id(1)
-        pid_k = tl.program_id(2)
+        # One program per (feature block, K slice) serves every row: the weight tile is read
+        # and dequantized once, then multiplied by up to BLOCK_M activation rows.
+        pid_n = tl.program_id(0)
+        pid_k = tl.program_id(1)
         offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
         offs_k = tl.arange(0, BLOCK_K)
+        offs_m = tl.arange(0, BLOCK_M)
         mask_n = offs_n < N
-        acc = tl.zeros((BLOCK_N,), dtype=tl.float32)
+        mask_m = offs_m < M
+        acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
         for k0 in range(pid_k * BLOCK_K, K, SPLIT_K * BLOCK_K):
             w = _dequant_tile(
-                w_ptr, s_ptr, z_ptr, offs_n, mask_n, k0, K, stride_wn, stride_sn, GROUP, BLOCK_N, BLOCK_K, SYMMETRIC
+                w_ptr,
+                s_ptr,
+                z_ptr,
+                offs_n,
+                mask_n,
+                k0,
+                K,
+                stride_wn,
+                stride_sn,
+                GROUP,
+                BLOCK_N,
+                BLOCK_K,
+                SYMMETRIC,
+                BITS,
             )
             kk = k0 + offs_k
-            xv = tl.load(x_ptr + m * stride_xm + kk, mask=kk < K_REAL, other=0.0).to(tl.float32)
-            acc += tl.sum(w * xv[None, :], axis=1)
-        tl.atomic_add(y_ptr + m * stride_ym + offs_n, acc, mask=mask_n)
+            xv = tl.load(
+                x_ptr + offs_m[:, None] * stride_xm + kk[None, :],
+                mask=mask_m[:, None] & (kk < K_REAL)[None, :],
+                other=0.0,
+            ).to(tl.float32)
+            if BLOCK_M == 1:
+                acc += tl.sum(w * xv, axis=1)[None, :]
+            else:
+                acc += tl.sum(w[None, :, :] * xv[:, None, :], axis=2)
+        # slot pid_k holds this slice's partial sums; slots SPLIT_K..SLOTS-1 are zeroed by the
+        # first slice, so the buffer needs no memset and _sum_slots can add all of them
+        y_ptrs = y_ptr + pid_k * stride_yk + offs_m[:, None] * stride_ym + offs_n[None, :]
+        mask_y = mask_m[:, None] & mask_n[None, :]
+        tl.store(y_ptrs, acc, mask=mask_y)
+        if pid_k == 0:
+            for s in tl.static_range(SPLIT_K, SLOTS):
+                tl.store(y_ptrs + s * stride_yk, tl.zeros_like(acc), mask=mask_y)
+
+    @triton.jit
+    def _sum_slots(p_ptr, y_ptr, numel, SLOTS: tl.constexpr, BLOCK: tl.constexpr):
+        # y = ((p[0] + p[1]) + p[2]) + ..., always in this order, cast to y's dtype
+        offs = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
+        mask = offs < numel
+        acc = tl.load(p_ptr + offs, mask=mask, other=0.0)
+        for s in tl.static_range(1, SLOTS):
+            acc += tl.load(p_ptr + s * numel + offs, mask=mask, other=0.0)
+        tl.store(y_ptr + offs, acc.to(y_ptr.dtype.element_ty), mask=mask)
 
     @triton.autotune(
         configs=[
@@ -160,7 +233,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
                 (128, 256, 8, 3),
             )
         ],
-        key=["M", "N", "K", "GROUP"],
+        key=["M", "N", "K", "GROUP", "BITS"],
     )
     @triton.jit
     def _gemm(
@@ -177,6 +250,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         stride_wn,
         stride_sn,
         stride_ym,
+        BITS: tl.constexpr,  # positional, so the autotuner can key on it
         GROUP: tl.constexpr,
         BLOCK_K: tl.constexpr,
         BLOCK_M: tl.constexpr,
@@ -193,7 +267,20 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
         for k0 in range(0, K, BLOCK_K):
             w = _dequant_tile(
-                w_ptr, s_ptr, z_ptr, offs_n, mask_n, k0, K, stride_wn, stride_sn, GROUP, BLOCK_N, BLOCK_K, SYMMETRIC
+                w_ptr,
+                s_ptr,
+                z_ptr,
+                offs_n,
+                mask_n,
+                k0,
+                K,
+                stride_wn,
+                stride_sn,
+                GROUP,
+                BLOCK_N,
+                BLOCK_K,
+                SYMMETRIC,
+                BITS,
             )
             kk = k0 + offs_k
             xt = tl.load(
@@ -219,7 +306,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
                 (8, 512, 4),
             )
         ],
-        key=["N", "K", "GROUP"],
+        key=["N", "K", "GROUP", "BITS"],
     )
     @triton.jit
     def _dequant(
@@ -233,6 +320,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         stride_wn,
         stride_sn,
         stride_on,
+        BITS: tl.constexpr,  # positional, so the autotuner can key on it
         GROUP: tl.constexpr,
         BLOCK_N: tl.constexpr,
         BLOCK_K: tl.constexpr,
@@ -242,7 +330,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
         k0 = tl.program_id(1) * BLOCK_K
         mask_n = offs_n < N
         w = _dequant_tile(
-            w_ptr, s_ptr, z_ptr, offs_n, mask_n, k0, K, stride_wn, stride_sn, GROUP, BLOCK_N, BLOCK_K, SYMMETRIC
+            w_ptr, s_ptr, z_ptr, offs_n, mask_n, k0, K, stride_wn, stride_sn, GROUP, BLOCK_N, BLOCK_K, SYMMETRIC, BITS
         )
         kk = k0 + tl.arange(0, BLOCK_K)
         mask = mask_n[:, None] & (kk < K_REAL)[None, :]
@@ -250,6 +338,7 @@ if TRITON_AVAILABLE:  # pragma: no cover - exercised on GPU machines only
 
 
 GEMV_MAX_ROWS = 4
+SPLIT_K_MAX = 4  # the largest SPLIT_K among the GEMV configs
 # From scripts/bench_int4_prefill.py on an RTX 3090: dequantize + cuBLAS beats the fused GEMM
 # on every measured shape from 64 rows on, and at any row count when the layer is not wider
 # than it is long (K >= N), where the fused GEMM's short K tiles leave it 1.2x to 2.9x slower.
@@ -261,6 +350,13 @@ def use_dequant(rows: int, in_features: int, out_features: int) -> bool:
     return rows > GEMV_MAX_ROWS and (rows >= DEQUANT_MIN_ROWS or in_features >= out_features)
 
 
+def _check_bits(bits: int, symmetric: bool) -> None:
+    if bits not in (2, 3, 4):
+        raise ValueError(f"bits must be 4, 3 or 2, not {bits}")
+    if symmetric and bits != 4:
+        raise ValueError("only INT4 weights can be symmetric (no zero point)")
+
+
 def int4_dequantize(
     qweight: Tensor,
     scale: Tensor,
@@ -268,11 +364,14 @@ def int4_dequantize(
     in_features: int,
     group_size: int,
     dtype: torch.dtype = torch.float16,
+    *,
+    bits: int = 4,
 ) -> Tensor:
-    """Unpack packed INT4 weights to a dense ``(N, in_features)`` matrix in one kernel."""
+    """Unpack packed INT4, INT3 or INT2 weights to a dense ``(N, in_features)`` matrix in one kernel."""
     if not triton_available():
         raise RuntimeError("int4_dequantize needs Triton and a CUDA device")
-    n, k = qweight.shape[0], qweight.shape[1] * 2
+    _check_bits(bits, zero is None)
+    n, k = qweight.shape[0], qweight.shape[1] * 8 // bits
     out = torch.empty(n, in_features, device=qweight.device, dtype=dtype)
     grid = lambda meta: (triton.cdiv(n, meta["BLOCK_N"]), triton.cdiv(k, meta["BLOCK_K"]))  # noqa: E731
     _dequant[grid](
@@ -286,6 +385,7 @@ def int4_dequantize(
         qweight.stride(0),
         scale.stride(0),
         out.stride(0),
+        bits,
         GROUP=group_size,
         SYMMETRIC=zero is None,
     )
@@ -302,8 +402,9 @@ def int4_linear(
     bias: Tensor | None = None,
     *,
     path: str = "auto",
+    bits: int = 4,
 ) -> Tensor:
-    """``x @ W^T + bias`` with ``W`` stored as packed INT4.
+    """``x @ W^T + bias`` with ``W`` stored as packed INT4 (or INT3, INT2 with ``bits``).
 
     ``path="auto"``: up to ``GEMV_MAX_ROWS`` rows use the fused GEMV; above that, the
     shapes picked by :func:`use_dequant` unpack the weight once and call cuBLAS, and the
@@ -316,37 +417,45 @@ def int4_linear(
         raise TypeError("int4_linear expects fp16 or bf16 activations")
     if group_size < 32 or group_size > 128 or group_size & (group_size - 1):
         raise ValueError("the triton kernel needs a power of two group_size between 32 and 128")
+    _check_bits(bits, zero is None)
     lead = x.shape[:-1]
     x2 = x.reshape(-1, in_features).contiguous()
     m, n = x2.shape[0], qweight.shape[0]
-    k = qweight.shape[1] * 2  # padded width, a multiple of group_size
+    k = qweight.shape[1] * 8 // bits  # padded width, a multiple of group_size
     symmetric = zero is None
     z = zero if zero is not None else scale  # dummy pointer, never read when symmetric
     if path not in ("auto", "fused", "dequant"):
         raise ValueError(f"path must be auto, fused or dequant, not {path!r}")
     if path == "dequant" or (path == "auto" and use_dequant(m, in_features, n)):
-        w = int4_dequantize(qweight, scale, zero, in_features, group_size, x.dtype)
+        w = int4_dequantize(qweight, scale, zero, in_features, group_size, x.dtype, bits=bits)
         return torch.nn.functional.linear(x, w, bias.to(x.dtype) if bias is not None else None)
     if m <= GEMV_MAX_ROWS and path == "auto":
-        y32 = torch.zeros(m, n, device=x.device, dtype=torch.float32)
-        grid = lambda meta: (m, triton.cdiv(n, meta["BLOCK_N"]), meta["SPLIT_K"])  # noqa: E731
+        # one slot per K slice, written (or zeroed) by the kernel itself
+        partial = torch.empty(SPLIT_K_MAX, m, n, device=x.device, dtype=torch.float32)
+        grid = lambda meta: (triton.cdiv(n, meta["BLOCK_N"]), meta["SPLIT_K"])  # noqa: E731
         _gemv[grid](
             x2,
             qweight,
             scale,
             z,
-            y32,
+            partial,
+            m,
             n,
             k,
             in_features,
             x2.stride(0),
             qweight.stride(0),
             scale.stride(0),
-            y32.stride(0),
+            partial.stride(0),
+            partial.stride(1),
+            bits,
             GROUP=group_size,
             SYMMETRIC=symmetric,
+            BLOCK_M=triton.next_power_of_2(m),
+            SLOTS=SPLIT_K_MAX,
         )
-        y = y32.to(x.dtype)
+        y = torch.empty(m, n, device=x.device, dtype=x.dtype)
+        _sum_slots[(triton.cdiv(m * n, 1024),)](partial, y, m * n, SLOTS=SPLIT_K_MAX, BLOCK=1024)
     else:
         y = torch.empty(m, n, device=x.device, dtype=x.dtype)
         grid_mm = lambda meta: (triton.cdiv(m, meta["BLOCK_M"]), triton.cdiv(n, meta["BLOCK_N"]))  # noqa: E731
@@ -364,6 +473,7 @@ def int4_linear(
             qweight.stride(0),
             scale.stride(0),
             y.stride(0),
+            bits,
             GROUP=group_size,
             BLOCK_K=group_size,
             SYMMETRIC=symmetric,

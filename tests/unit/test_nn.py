@@ -179,7 +179,7 @@ def test_backend_switching() -> None:
     assert model(x).shape == (2, 10)
     assert set_backend(model, "reference") == 2
     q8 = QLinear.from_linear(_linear(), "int8")
-    with pytest.raises(ValueError, match="needs int4 weights"):
+    with pytest.raises(ValueError, match="needs int4, int3 or int2 weights"):
         q8.set_backend("triton")
     with pytest.raises(ValueError, match="backend must be"):
         q8.set_backend("cuda")
@@ -195,7 +195,10 @@ def test_int3_and_int2_codec_validation() -> None:
         IntCodec(bits=3, symmetric=True)
     with pytest.raises(ValueError, match="bits must be"):
         IntCodec(bits=5)
-    assert not QLinear.from_linear(_linear(), "int3", 128).supports_triton()
+    assert QLinear.from_linear(_linear(), "int3", 128).supports_triton()  # fused kernels, ADR 0021
+    assert QLinear.from_linear(_linear(), "int2", 64).supports_triton()
+    assert not QLinear.from_linear(_linear(), "int3", 16).supports_triton()  # group too small
+    assert not QLinear.from_linear(_linear(), "int4", 32, act_bits=8).supports_triton()
 
 
 @pytest.mark.parametrize("bits", [3, 2])
