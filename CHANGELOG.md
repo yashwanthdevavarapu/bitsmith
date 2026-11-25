@@ -102,6 +102,10 @@ uses Semantic Versioning.
   memory, and release cached GPU memory between configs.
 - Result files are always written with LF line endings, also on Windows.
 
+### Fixed
+
+- `wikitext2_tokens` in `bitsmith.bench.hf` temporarily raises `tokenizer.model_max_length` during tokenization so WikiText-2 no longer emits the sequence-length warning while keeping the exact token IDs.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

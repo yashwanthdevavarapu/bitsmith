@@ -111,5 +111,30 @@ def test_table_rendering() -> None:
 def test_scatter_rendering() -> None:
     out = scatter([(2, 30, "ternary"), (4, 11, "int4"), (16, 10, "fp16")], log_x=True, log_y=True, highlight={"int4"})
     assert "B = int4" in out
+
+
+
+
     assert "a = ternary" in out
     assert scatter([]) == "(no points)"
+
+def test_wikitext2_tokens_raises_and_restores_model_max_length(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from bitsmith.bench import hf
+    splits = ["hello world", "longer wikitext2 split"]
+    fake_ds = SimpleNamespace(load_dataset=lambda *a, **kw: {"text": splits})
+    monkeypatch.setattr(hf, "_require_hf", lambda: (None, fake_ds))
+    seen: list[int] = []
+    class FakeTokenizer:
+        model_max_length = 4
+        def __call__(self, text: str) -> dict[str, list[int]]:
+            seen.append(self.model_max_length)
+            assert self.model_max_length >= len(text) + 1
+            return {"input_ids": list(range(len(text)))}
+    tok = FakeTokenizer()
+    ids = hf.wikitext2_tokens(tok)
+    expected_text = splits[0] + chr(10) * 2 + splits[1]
+    assert seen == [len(expected_text) + 1]
+    assert tok.model_max_length == 4
+    assert ids.tolist() == list(range(len(expected_text)))
+    
