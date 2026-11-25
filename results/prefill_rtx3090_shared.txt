@@ -1,51 +1,51 @@
 Prefill on NVIDIA GeForce RTX 3090: one forward pass, median ms over 7 interleaved rounds of 5; graph = CUDA graph replay (GPU time); perplexity on the first 32k WikiText-2 test tokens
 | model        | weights          | kernel            | batch x prompt | eager ms | eager vs bf16 | graph ms | graph tokens/s | graph vs bf16 | perplexity |
 |--------------|------------------|-------------------|----------------|---------:|---------------|---------:|---------------:|---------------|------------|
-| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 128        |    18.47 | 1.00x         |    4.464 |         28,676 | 1.00x         | 14.406     |
-| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 512        |    18.97 | 1.00x         |    9.925 |         51,589 | 1.00x         | 14.406     |
-| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 2048       |    82.84 | 1.00x         |    82.55 |         24,808 | 1.00x         | 14.406     |
-| Qwen2.5-0.5B | bf16             | cuBLAS            | 8 x 512        |    148.6 | 1.00x         |    145.1 |         28,234 | 1.00x         | 14.406     |
-| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    41.52 | 0.44x         |    5.004 |         25,578 | 0.89x         | 14.544     |
-| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    41.92 | 0.45x         |    9.481 |         54,002 | 1.05x         | 14.544     |
-| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    84.52 | 0.98x         |    78.58 |         26,061 | 1.05x         | 14.544     |
-| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    149.2 | 1.00x         |    142.1 |         28,830 | 1.02x         | 14.544     |
-| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 128        |    68.35 | 0.27x         |    19.64 |          6,519 | 0.23x         | 14.543     |
-| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 512        |    69.66 | 0.27x         |    32.41 |         15,798 | 0.31x         | 14.543     |
-| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 2048       |    267.2 | 0.31x         |    241.9 |          8,465 | 0.34x         | 14.543     |
-| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 8 x 512        |    474.1 | 0.31x         |    453.8 |          9,026 | 0.32x         | 14.543     |
-| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 128        |    29.36 | 0.63x         |    11.97 |         10,690 | 0.37x         | 16.551     |
-| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 512        |    30.04 | 0.63x         |    23.95 |         21,378 | 0.41x         | 16.551     |
-| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 2048       |    159.1 | 0.52x         |    155.4 |         13,176 | 0.53x         | 16.551     |
-| Qwen2.5-0.5B | int4-g64         | fused Triton      | 8 x 512        |    338.5 | 0.44x         |    328.7 |         12,462 | 0.44x         | 16.551     |
-| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 128        |    21.62 | 1.00x         |    9.913 |         12,912 | 1.00x         | 10.100     |
-| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 512        |    31.96 | 1.00x         |    30.32 |         16,886 | 1.00x         | 10.100     |
-| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 2048       |    111.6 | 1.00x         |    110.6 |         18,516 | 1.00x         | 10.100     |
-| Qwen2.5-1.5B | bf16             | cuBLAS            | 8 x 512        |    211.5 | 1.00x         |    211.6 |         19,358 | 1.00x         | 10.100     |
-| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    48.61 | 0.44x         |    8.318 |         15,388 | 1.19x         | 10.200     |
-| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    49.02 | 0.65x         |    24.06 |         21,279 | 1.26x         | 10.200     |
-| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    85.96 | 1.30x         |    83.95 |         24,395 | 1.32x         | 10.200     |
-| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    155.1 | 1.36x         |    152.1 |         26,932 | 1.39x         | 10.200     |
-| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 128        |    80.07 | 0.27x         |    50.62 |          2,529 | 0.20x         | 10.216     |
-| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 512        |    93.66 | 0.34x         |    88.01 |          5,818 | 0.34x         | 10.216     |
-| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 2048       |    261.4 | 0.43x         |    255.3 |          8,022 | 0.43x         | 10.216     |
-| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 8 x 512        |    470.9 | 0.45x         |    462.7 |          8,853 | 0.46x         | 10.216     |
-| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 128        |    34.60 | 0.62x         |    26.98 |          4,745 | 0.37x         | 11.001     |
-| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 512        |    72.20 | 0.44x         |    69.94 |          7,321 | 0.43x         | 11.001     |
-| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 2048       |    229.2 | 0.49x         |    227.3 |          9,008 | 0.49x         | 11.001     |
-| Qwen2.5-1.5B | int4-g64         | fused Triton      | 8 x 512        |    416.3 | 0.51x         |    414.6 |          9,880 | 0.51x         | 11.001     |
-| SmolLM2-135M | bf16             | cuBLAS            | 1 x 128        |    20.96 | 1.00x         |    6.162 |         20,771 | 1.00x         | 16.849     |
-| SmolLM2-135M | bf16             | cuBLAS            | 1 x 512        |    21.22 | 1.00x         |    13.72 |         37,327 | 1.00x         | 16.849     |
-| SmolLM2-135M | bf16             | cuBLAS            | 1 x 2048       |    45.59 | 1.00x         |    20.15 |        101,647 | 1.00x         | 16.849     |
-| SmolLM2-135M | bf16             | cuBLAS            | 8 x 512        |    33.24 | 1.00x         |    31.54 |        129,874 | 1.00x         | 16.849     |
-| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    50.04 | 0.42x         |    9.482 |         13,499 | 0.65x         | 17.027     |
-| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    49.68 | 0.43x         |    13.86 |         36,949 | 0.99x         | 17.027     |
-| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    50.87 | 0.90x         |    20.83 |         98,314 | 0.97x         | 17.027     |
-| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    51.07 | 0.65x         |    35.77 |        114,518 | 0.88x         | 17.027     |
-| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 128        |    82.42 | 0.25x         |    28.04 |          4,565 | 0.22x         | 17.046     |
-| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 512        |    82.67 | 0.26x         |    38.19 |         13,408 | 0.36x         | 17.046     |
-| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 2048       |    83.70 | 0.54x         |    55.22 |         37,085 | 0.36x         | 17.046     |
-| SmolLM2-135M | w8a8 smoothquant | simulated         | 8 x 512        |    109.6 | 0.30x         |    103.4 |         39,622 | 0.31x         | 17.046     |
-| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 128        |    33.64 | 0.62x         |    14.38 |          8,902 | 0.43x         | 21.590     |
-| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 512        |    34.43 | 0.62x         |    22.66 |         22,594 | 0.61x         | 21.590     |
-| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 2048       |    34.60 | 1.32x         |    28.98 |         70,671 | 0.70x         | 21.590     |
-| SmolLM2-135M | int4-g64         | fused Triton      | 8 x 512        |    50.08 | 0.66x         |    48.07 |         85,204 | 0.66x         | 21.590     |
+| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 128        |    16.78 | 1.00x         |    9.413 |         13,599 | 1.00x         | 14.406     |
+| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 512        |    22.81 | 1.00x         |    22.62 |         22,639 | 1.00x         | 14.406     |
+| Qwen2.5-0.5B | bf16             | cuBLAS            | 1 x 2048       |    85.96 | 1.00x         |    86.43 |         23,695 | 1.00x         | 14.406     |
+| Qwen2.5-0.5B | bf16             | cuBLAS            | 8 x 512        |    155.2 | 1.00x         |    149.6 |         27,382 | 1.00x         | 14.406     |
+| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    40.77 | 0.41x         |    9.964 |         12,847 | 0.94x         | 14.544     |
+| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    40.72 | 0.56x         |    19.45 |         26,324 | 1.16x         | 14.544     |
+| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    82.75 | 1.04x         |    78.88 |         25,963 | 1.10x         | 14.544     |
+| Qwen2.5-0.5B | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    146.6 | 1.06x         |    145.2 |         28,204 | 1.03x         | 14.544     |
+| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 128        |    67.08 | 0.25x         |    45.91 |          2,788 | 0.21x         | 14.543     |
+| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 512        |    86.38 | 0.26x         |    74.27 |          6,894 | 0.30x         | 14.543     |
+| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 1 x 2048       |    257.8 | 0.33x         |    239.0 |          8,570 | 0.36x         | 14.543     |
+| Qwen2.5-0.5B | w8a8 smoothquant | simulated         | 8 x 512        |    462.1 | 0.34x         |    445.1 |          9,202 | 0.34x         | 14.543     |
+| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 128        |    31.87 | 0.53x         |    10.93 |         11,707 | 0.86x         | 16.543     |
+| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 512        |    32.64 | 0.70x         |    23.83 |         21,485 | 0.95x         | 16.543     |
+| Qwen2.5-0.5B | int4-g64         | fused Triton      | 1 x 2048       |    89.63 | 0.96x         |    85.89 |         23,845 | 1.01x         | 16.543     |
+| Qwen2.5-0.5B | int4-g64         | fused Triton      | 8 x 512        |    159.2 | 0.97x         |    154.4 |         26,535 | 0.97x         | 16.543     |
+| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 128        |    22.94 | 1.00x         |    19.91 |          6,430 | 1.00x         | 10.100     |
+| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 512        |    68.18 | 1.00x         |    67.75 |          7,557 | 1.00x         | 10.100     |
+| Qwen2.5-1.5B | bf16             | cuBLAS            | 1 x 2048       |    248.6 | 1.00x         |    248.8 |          8,233 | 1.00x         | 10.100     |
+| Qwen2.5-1.5B | bf16             | cuBLAS            | 8 x 512        |    472.8 | 1.00x         |    462.2 |          8,862 | 1.00x         | 10.100     |
+| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    47.30 | 0.48x         |    18.48 |          6,925 | 1.08x         | 10.200     |
+| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    55.65 | 1.23x         |    51.12 |         10,016 | 1.33x         | 10.200     |
+| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    192.7 | 1.29x         |    188.7 |         10,854 | 1.32x         | 10.200     |
+| Qwen2.5-1.5B | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    349.9 | 1.35x         |    343.8 |         11,915 | 1.34x         | 10.200     |
+| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 128        |    130.6 | 0.18x         |    129.3 |          990.0 | 0.15x         | 10.216     |
+| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 512        |    221.4 | 0.31x         |    210.9 |          2,428 | 0.32x         | 10.216     |
+| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 1 x 2048       |    634.8 | 0.39x         |    604.1 |          3,390 | 0.41x         | 10.216     |
+| Qwen2.5-1.5B | w8a8 smoothquant | simulated         | 8 x 512        |    1,124 | 0.42x         |    1,097 |          3,733 | 0.42x         | 10.216     |
+| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 128        |    38.84 | 0.59x         |    32.31 |          3,961 | 0.62x         | 11.001     |
+| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 512        |    81.36 | 0.84x         |    77.08 |          6,642 | 0.88x         | 11.001     |
+| Qwen2.5-1.5B | int4-g64         | fused Triton      | 1 x 2048       |    255.0 | 0.97x         |    250.0 |          8,191 | 0.99x         | 11.001     |
+| Qwen2.5-1.5B | int4-g64         | fused Triton      | 8 x 512        |    498.5 | 0.95x         |    479.7 |          8,539 | 0.96x         | 11.001     |
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 128        |    22.06 | 1.00x         |    3.841 |         33,324 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 512        |    22.54 | 1.00x         |    6.353 |         80,595 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 1 x 2048       |    24.01 | 1.00x         |    22.23 |         92,111 | 1.00x         | 16.849     |
+| SmolLM2-135M | bf16             | cuBLAS            | 8 x 512        |    35.28 | 1.00x         |    33.34 |        122,865 | 1.00x         | 16.849     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 128        |    50.84 | 0.43x         |    4.882 |         26,216 | 0.79x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 512        |    50.86 | 0.44x         |    6.729 |         76,092 | 0.94x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 1 x 2048       |    50.96 | 0.47x         |    22.86 |         89,570 | 0.97x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | int8 tensor cores | 8 x 512        |    51.01 | 0.69x         |    37.67 |        108,734 | 0.88x         | 17.027     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 128        |    83.05 | 0.27x         |    13.59 |          9,421 | 0.28x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 512        |    82.97 | 0.27x         |    18.37 |         27,877 | 0.35x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 1 x 2048       |    83.54 | 0.29x         |    57.59 |         35,561 | 0.39x         | 17.046     |
+| SmolLM2-135M | w8a8 smoothquant | simulated         | 8 x 512        |    113.1 | 0.31x         |    106.9 |         38,313 | 0.31x         | 17.046     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 128        |    40.45 | 0.55x         |    4.382 |         29,212 | 0.88x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 512        |    41.11 | 0.55x         |    6.843 |         74,817 | 0.93x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 1 x 2048       |    40.48 | 0.59x         |    22.89 |         89,469 | 0.97x         | 21.590     |
+| SmolLM2-135M | int4-g64         | fused Triton      | 8 x 512        |    40.62 | 0.87x         |    34.00 |        120,478 | 0.98x         | 21.590     |
