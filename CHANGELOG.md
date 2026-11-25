@@ -47,6 +47,15 @@ uses Semantic Versioning.
   or any layer with `K >= N`), with `path="auto" | "fused" | "dequant"` to force a path.
   INT4 layers with 256 or more rows are 1.6x to 3.1x faster; `scripts/bench_int4_prefill.py`
   measures the switch point (`results/int4_prefill_rtx3090_shared.*`).
+- Fused Triton kernels for INT3 and INT2 (ADR 0021): one tile loader for 4, 3 and 2 bits,
+  `bits=` on `int4_linear` and `int4_dequantize`, and the `triton` backend now accepts
+  `int3` and `int2` layers. At one row INT2 layers are 1.00x to 2.09x the speed of fp16
+  and 1.00x to 1.38x faster than INT4; INT3 is slower than INT4 (unpacking bound). INT2
+  decodes Qwen2.5-0.5B 1.04x faster than bf16.
+- `scripts/bench_lowbit.py`: INT4, INT3 and INT2 layer speed against fp16 at 1, 4 and 16
+  rows (`results/lowbit_kernels_rtx3090_shared.*`, `docs/assets/lowbit_kernels_rtx3090.png`).
+- `scripts/bench_decode.py --schemes int4 int3 int2` and `--no-reference`
+  (`results/decode_lowbit_rtx3090_shared.*`).
 - `int8_linear(input_scale=...)`: the SmoothQuant or AWQ input scale is applied inside the
   fused quantization kernel, bit for bit equal to multiplying first; the `int8` backend
   uses it.
@@ -66,6 +75,13 @@ uses Semantic Versioning.
 
 ### Changed
 
+- The INT4 GEMV handles up to 4 rows in one program and dequantizes each weight tile once
+  for all of them: 1.1x to 2.3x faster at 4 rows (ADR 0021).
+- The GEMV adds its split-K partial sums in a fixed order instead of with fp32 atomics, so
+  repeated calls give the same bits. CUDA graph and eager decoding could pick different
+  tokens on a busy GPU before. The new reduction launches one kernel fewer per layer (no
+  memset), and INT4 decoding got 8% to 10% faster.
+- `results/prefill_rtx3090_shared.*` re-measured for all three models after ADR 0020.
 - The CPU test of half-precision layers is skipped on machines where PyTorch's fp16 or bf16
   CPU matmul crashes with an illegal instruction (seen on some GitHub Windows runners); a
   child process probes it once per session.
