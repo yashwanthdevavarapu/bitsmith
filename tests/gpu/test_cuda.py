@@ -81,7 +81,7 @@ needs_triton = pytest.mark.skipif(not triton_available(), reason="needs Triton")
 
 @needs_triton
 @pytest.mark.parametrize("rows", [1, 3, 8, 9, 64, 300])
-@pytest.mark.parametrize("scheme", ["int4", "int4-sym"])
+@pytest.mark.parametrize("scheme", ["int4", "int4-sym", "int3", "int2"])
 @pytest.mark.parametrize("group", [32, 64, 128])
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
 def test_triton_kernel_matches_reference(rows: int, scheme: str, group: int, dtype: torch.dtype) -> None:
@@ -97,9 +97,10 @@ def test_triton_kernel_matches_reference(rows: int, scheme: str, group: int, dty
 
 
 @needs_triton
-def test_triton_kernel_handles_padding_and_batches() -> None:
+@pytest.mark.parametrize("scheme", ["int4", "int3", "int2"])
+def test_triton_kernel_handles_padding_and_batches(scheme: str) -> None:
     lin = nn.Linear(100, 48).to(CUDA, torch.float16)  # 100 is not a multiple of the group
-    q = QLinear.from_linear(lin, "int4", 64)
+    q = QLinear.from_linear(lin, scheme, 64)
     x = torch.randn(2, 5, 100, device=CUDA, dtype=torch.float16)
     ref = q(x)
     q.set_backend("triton")
@@ -108,35 +109,40 @@ def test_triton_kernel_handles_padding_and_batches() -> None:
 
 
 @needs_triton
-@pytest.mark.parametrize("scheme", ["int4", "int4-sym"])
+@pytest.mark.parametrize("scheme", ["int4", "int4-sym", "int3", "int2"])
 @pytest.mark.parametrize("group", [32, 64, 128])
 @pytest.mark.parametrize("in_features", [320, 100])  # 100 is not a multiple of the group
 def test_int4_dequantize_matches_codec(scheme: str, group: int, in_features: int) -> None:
+    """The Triton unpacking gives exactly the codec's weights, for every bit width."""
     from bitsmith.kernels import int4_dequantize
 
     lin = nn.Linear(in_features, 72).to(CUDA, torch.float16)
     q = QLinear.from_linear(lin, scheme, group)
     bufs = q.packed_buffers()
-    w = int4_dequantize(bufs["qweight"], bufs["scale"], bufs.get("zero"), in_features, group, torch.float32)
+    bits = q.codec.bits  # type: ignore[attr-defined]
+    w = int4_dequantize(bufs["qweight"], bufs["scale"], bufs.get("zero"), in_features, group, torch.float32, bits=bits)
     torch.testing.assert_close(w, q.dequantized_weight(torch.float32), rtol=1e-6, atol=1e-7)
 
 
 @needs_triton
 @pytest.mark.parametrize("rows", [5, 64, 300])
-def test_int4_prefill_paths_agree(rows: int) -> None:
+@pytest.mark.parametrize("bits", [4, 3, 2])
+def test_int4_prefill_paths_agree(rows: int, bits: int) -> None:
     """The fused GEMM and dequantize + cuBLAS use the same weights; only summation order differs."""
     torch.manual_seed(0)
     lin = nn.Linear(100, 48, bias=True).to(CUDA, torch.bfloat16)
-    q = QLinear.from_linear(lin, "int4", 64)
+    q = QLinear.from_linear(lin, f"int{bits}", 64)
     bufs = q.packed_buffers()
     x = torch.randn(rows, 100, device=CUDA, dtype=torch.bfloat16)
     args = (x, bufs["qweight"], bufs["scale"], bufs["zero"], 100, 64, q.bias)
-    fused = int4_linear(*args, path="fused")
-    dense = int4_linear(*args, path="dequant")
+    fused = int4_linear(*args, path="fused", bits=bits)
+    dense = int4_linear(*args, path="dequant", bits=bits)
     assert dense.shape == fused.shape == (rows, 48)
     assert sqnr_db(fused.float(), dense.float()) > 40
     with pytest.raises(ValueError, match="path"):
-        int4_linear(*args, path="cublas")
+        int4_linear(*args, path="cublas", bits=bits)
+    with pytest.raises(ValueError, match="bits"):
+        int4_linear(*args, bits=5)
 
 
 @needs_triton
@@ -222,3 +228,20 @@ def test_int8_fused_input_scale_matches_separate_multiply(dtype: torch.dtype) ->
     codes_ref, scale_ref = quantize_rows_int8(x * s.to(dtype))
     torch.testing.assert_close(scale, scale_ref, rtol=0, atol=0)
     assert torch.equal(codes[:40], codes_ref)
+
+
+@needs_triton
+@pytest.mark.parametrize("bits", [4, 3, 2])
+def test_gemv_is_bitwise_repeatable(bits: int) -> None:
+    """Split-K partial sums are added in a fixed order, never with atomics (ADR 0021)."""
+    from bitsmith.kernels.int4_triton import SPLIT_K_MAX, _gemv
+
+    assert all(c.kwargs["SPLIT_K"] <= SPLIT_K_MAX for c in _gemv.configs)
+    torch.manual_seed(0)
+    lin = nn.Linear(4864, 896, bias=False).to(torch.bfloat16)  # long K: split-K configs win here
+    q = QLinear.from_linear(lin, f"int{bits}", 64).to(CUDA)
+    q.set_backend("triton")
+    for rows in (1, 3):
+        x = torch.randn(rows, 4864, device=CUDA, dtype=torch.bfloat16)
+        first = q(x)
+        assert all(torch.equal(q(x), first) for _ in range(20))

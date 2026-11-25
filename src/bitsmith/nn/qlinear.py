@@ -134,7 +134,7 @@ class QLinear(nn.Module):
         return w
 
     def supports_triton(self) -> bool:
-        return isinstance(self.codec, Int4Codec) and self.codec.bits == 4 and self.act_bits is None
+        return isinstance(self.codec, Int4Codec) and self.act_bits is None and self.codec.group_size in (32, 64, 128)
 
     def supports_int8(self) -> bool:
         """INT8 weights with INT8 activations (W8A8) on ``torch._int_mm``."""
@@ -147,12 +147,15 @@ class QLinear(nn.Module):
         return {"reference": True, "triton": self.supports_triton(), "int8": self.supports_int8()}.get(backend, False)
 
     def set_backend(self, backend: str) -> None:
-        """``"reference"`` (dequantize then matmul), ``"triton"`` (fused INT4 kernel) or
-        ``"int8"`` (integer W8A8 matmul)."""
+        """``"reference"`` (dequantize then matmul), ``"triton"`` (fused INT4, INT3 and INT2
+        kernels, ADR 0021) or ``"int8"`` (integer W8A8 matmul)."""
         if backend not in BACKENDS:
             raise ValueError(f"backend must be one of {BACKENDS}")
         if not self.supports(backend):
-            needs = {"triton": "int4 weights", "int8": "int8 weights with act_bits=8"}[backend]
+            needs = {
+                "triton": "int4, int3 or int2 weights with group size 32, 64 or 128",
+                "int8": "int8 weights with act_bits=8",
+            }[backend]
             raise ValueError(f"the {backend} backend needs {needs}, not {self.codec.name}")
         self.backend = backend
 
@@ -178,6 +181,7 @@ class QLinear(nn.Module):
                 self.in_features,
                 codec.group_size,
                 self.bias,
+                bits=codec.bits,
             )
         if self.act_bits is not None:
             x = quantize_activations_per_token(x, self.act_bits)
