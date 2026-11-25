@@ -340,7 +340,7 @@ def prefill_chart(result_file: Path, out_name: str) -> None:
     models = sorted(names, key=lambda m: order.index(m.split("/")[1]) if m.split("/")[1] in order else len(order))
     series = [
         (("w8a8 smoothquant", "int8 tensor cores"), "W8A8, INT8 tensor cores", ORANGE),
-        (("int4-g64", "fused Triton"), "INT4, fused Triton", BLUE),
+        (("int4-g64", "fused Triton"), "INT4, Triton backend", BLUE),
         (("w8a8 smoothquant", "simulated"), "W8A8, simulated", INK_2),
     ]
     fig, axes = plt.subplots(1, len(models), figsize=(4 * len(models), 4), squeeze=False, sharey=True)
@@ -409,6 +409,40 @@ def int4_prefill_chart(result_file: Path, out_name: str) -> None:
     _save(fig, out_name)
 
 
+def lowbit_chart(result_file: Path, out_name: str) -> None:
+    """Decode-shaped layers: INT4, INT3 and INT2 fused kernels as a share of fp16 speed."""
+    if not result_file.exists():
+        return
+    data = json.loads(result_file.read_text(encoding="utf-8"))
+    panels = [1, 4]
+    fig, axes = plt.subplots(1, len(panels), figsize=(12, 4.4), sharey=True, squeeze=False)
+    series = (("int4", "INT4", BLUE), ("int3", "INT3", AQUA), ("int2", "INT2", ORANGE))
+    for ax, rows in zip(axes[0], panels, strict=True):
+        recs = [r for r in data["records"] if r["rows"] == rows]
+        width = 0.8 / len(series)
+        for i, (key, label, color) in enumerate(series):
+            xs = [j + (i - 1) * width for j in range(len(recs))]
+            ax.bar(xs, [r["fp16_us"] / r[f"{key}_us"] for r in recs], width=width, color=color, label=label)
+        ax.axhline(1.0, color=INK, linewidth=1)
+        ax.set_xticks(range(len(recs)))
+        short = [r["layer"].replace("qwen2.5-1.5b", "1.5B").replace("7b", "7B").replace(" (", "\n")[:-1] for r in recs]
+        ax.set_xticklabels(short, fontsize=8)
+        ax.set_title(f"{rows} activation row{'s' if rows > 1 else ''}", loc="left", fontsize=11.5)
+        ax.set_axisbelow(True)
+        ax.grid(axis="x", visible=False)
+    axes[0][0].set_ylabel("speed vs fp16 cuBLAS")
+    axes[0][0].legend(loc="upper left", fontsize=8.5)
+    fig.suptitle(
+        f"Fused low-bit kernels for decoding, group {data['group_size']}, shared "
+        f"{data['gpu'].replace('NVIDIA GeForce ', '')}",
+        x=0.01,
+        ha="left",
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    _save(fig, out_name)
+
+
 def kernel_chart(result_file: Path, out_name: str) -> None:
     data = json.loads(result_file.read_text(encoding="utf-8"))
     recs = [r for r in data["records"] if r["rows"] == 1]
@@ -449,6 +483,7 @@ def main() -> None:
     kv_chart("kv_gpu_models.png")
     memory_chart("memory_gpu_models.png")
     int4_prefill_chart(RESULTS / "int4_prefill_rtx3090_shared.json", "int4_prefill_rtx3090.png")
+    lowbit_chart(RESULTS / "lowbit_kernels_rtx3090_shared.json", "lowbit_kernels_rtx3090.png")
     clean = RESULTS / "prefill_rtx3090.json"  # an idle GPU run replaces the shared one
     prefill_chart(clean if clean.exists() else RESULTS / "prefill_rtx3090_shared.json", "prefill_rtx3090.png")
     if (RESULTS / "kernels_rtx3090.json").exists():
